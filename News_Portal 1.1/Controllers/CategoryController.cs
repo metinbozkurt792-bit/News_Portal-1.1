@@ -18,6 +18,7 @@ namespace News_Portal_1._1.Controllers
             _repository = repository;
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> GetAllCategories()
         {
@@ -29,6 +30,7 @@ namespace News_Portal_1._1.Controllers
             return Ok(categories);
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpGet("{id}")]
         public async Task<IActionResult> GetCategoryById(int id)
         {

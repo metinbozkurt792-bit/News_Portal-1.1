@@ -1,0 +1,158 @@
+﻿@{
+    ViewData["Title"] = "Güncel Haberler";
+    Layout = "_Layout";
+}
+
+<div class="container mt-5">
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold text-dark">📰 Güncel Haberler</h1>
+        <p class="text-muted fs-5">Dünyadan ve ülkemizden en son gelişmeler...</p>
+    </div>
+
+    <div class="row justify-content-center mb-5">
+        <div class="col-md-8">
+            <div class="position-relative">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="#6c757d" class="position-absolute search-icon" viewBox="0 0 16 16">
+                    <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
+                </svg>
+
+                <input type="text" id="txtSearch" class="form-control form-control-lg rounded-pill shadow-sm custom-search-input" placeholder="Haber başlığı, yazar veya kategori ara...">
+            </div>
+        </div>
+    </div>
+
+    <div class="row" id="newsGrid">
+        <div class="col-12 text-center text-muted">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2">Haberler merkeze bağlanıyor...</p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_NEWS_URL = "https://localhost:7043/api/News";
+        const API_CAT_URL = "https://localhost:7043/api/Category";
+
+        let categoryDict = {};
+
+        $(document).ready(function () {
+            loadCategoriesAndNews();
+
+            $("#txtSearch").on("keyup", function () {
+                var value = $(this).val().toLowerCase();
+
+                $("#newsGrid .news-col").filter(function () {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+                });
+            });
+        });
+
+        function loadCategoriesAndNews() {
+            $.ajax({
+                url: API_CAT_URL,
+                type: "GET",
+                success: function (categories) {
+                    $.each(categories, function (i, cat) {
+                        categoryDict[cat.id] = cat.name;
+                    });
+                    loadLatestNews();
+                },
+                error: function () {
+                    console.warn("Kategoriler çekilemedi!");
+                    loadLatestNews();
+                }
+            });
+        }
+
+        function loadLatestNews() {
+            $.ajax({
+                url: API_NEWS_URL,
+                type: "GET",
+                success: function (newsList) {
+                    if (!newsList || newsList.length === 0) {
+                        $("#newsGrid").html('<div class="alert alert-warning text-center w-100">Şu an yayında olan bir haber bulunmuyor.</div>');
+                        return;
+                    }
+
+                    var cardsHtml = "";
+
+                    $.each(newsList, function (index, n) {
+                        var catName = categoryDict[n.categoryId] ? categoryDict[n.categoryId] : "Genel";
+                        var shortContent = n.content.length > 100 ? n.content.substring(0, 100) + "..." : n.content;
+                        var coverImage = "/images/default-news.png";
+
+                        if (n.imageUrl && n.imageUrl.trim() !== "") {
+                            coverImage = n.imageUrl.split(',')[0];
+                        }
+
+                        cardsHtml += `
+                            <div class="col-md-4 mb-4 news-col">
+                                <div class="card h-100 shadow-sm border-0 news-card">
+                                    <div class="position-relative">
+                                        <img src="https://localhost:7043${coverImage}" class="card-img-top" alt="Haber Görseli" style="height: 200px; object-fit: cover;">
+                                        <span class="badge bg-danger position-absolute top-0 start-0 m-2 px-3 py-2 fs-6 shadow">
+                                            ${catName}
+                                        </span>
+                                    </div>
+                                    <div class="card-body d-flex flex-column">
+                                        <h5 class="card-title fw-bold text-dark">${n.title}</h5>
+                                        <p class="card-text text-muted">${shortContent}</p>
+
+                                        <div class="mt-auto">
+                                            <div class="d-flex justify-content-between text-muted small mb-3 fw-bold">
+                                                <span><i class="bi bi-eye"></i> ${n.viewCount || 0}</span>
+                                                <span><i class="bi bi-heart-fill text-danger"></i> ${n.likeCount || 0}</span>
+                                            </div>
+                                            <a href="/Home/NewsDetail/${n.id}" class="btn btn-primary w-100 fw-bold">Haberi Oku <i class="bi bi-arrow-right"></i></a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    $("#newsGrid").html(cardsHtml);
+                },
+                error: function () {
+                    $("#newsGrid").html('<div class="alert alert-danger text-center w-100">Haberler sunucudan alınırken bir hata oluştu!</div>');
+                }
+            });
+        }
+    </script>
+
+    <style>
+        .search-icon {
+            top: 50%;
+            left: 1.5rem;
+            transform: translateY(-50%);
+            z-index: 10;
+        }
+
+        .custom-search-input {
+            padding-left: 3.5rem; 
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+            font-size: 1.1rem;
+            border: 2px solid #e9ecef;
+            background-color: #f8f9fa;
+            transition: all 0.3s ease-in-out;
+        }
+
+            .custom-search-input:focus {
+                background-color: #ffffff;
+                border-color: #0d6efd;
+                box-shadow: 0 0 15px rgba(13, 110, 253, 0.15) !important;
+                outline: none;
+            }
+
+        .news-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+            .news-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.15) !important;
+            }
+    </style>
+}

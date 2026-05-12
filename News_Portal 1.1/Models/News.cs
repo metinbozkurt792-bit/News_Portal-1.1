@@ -4,6 +4,7 @@ namespace News_Portal_1._1.Models
 {
     public class News
     {
+        public int UserId { get; set; }
         public int Id { get; set; }
         public string Title { get; set; }
         public string Content { get; set; }
@@ -14,5 +15,7 @@ namespace News_Portal_1._1.Models
         public virtual Category Category { get; set; }
         public virtual ICollection<Comment> Comments { get; set; }
         public string? AuthorName { get; set; }
+        public string? LikedIPs { get; set; }
+        public int ViewCount { get; set; }
     }
 }

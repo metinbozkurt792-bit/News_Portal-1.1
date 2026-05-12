@@ -1,0 +1,102 @@
+﻿@{
+    ViewData["Title"] = "Sisteme Kayıt Ol";
+    Layout = "_AuthLayout";
+}
+
+<div class="text-center mb-4">
+    <div class="mb-3">
+        <i class="bi bi-person-plus-fill text-white" style="font-size: 3.5rem; filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));"></i>
+    </div>
+    <h2 class="fw-bold text-white mb-2">Yeni Kayıt</h2>
+    <p class="text-white-50 small">Sisteme erişmek için bir kod adı ve şifre belirleyin.</p>
+</div>
+
+<div id="authAlert" class="alert d-none border-0 shadow-sm mb-4" style="background: rgba(255, 193, 7, 0.2); color: #ffd966; border-radius: 12px;">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <span id="authAlertText" class="small fw-bold"></span>
+</div>
+
+<form id="registerForm">
+    <div class="mb-3 text-start">
+        <label class="form-label text-white-50 small fw-bold ms-2">KULLANICI ADI (KOD ADI)</label>
+        <input type="text" id="txtUsername" class="form-control form-control-lg bg-transparent text-white border-white-50"
+               placeholder="Örn: Burak Yavuz" style="border-radius: 12px;">
+    </div>
+
+    <div class="mb-3 text-start">
+        <label class="form-label text-white-50 small fw-bold ms-2">E-POSTA ADRESİ</label>
+        <input type="email" id="txtEmail" class="form-control form-control-lg bg-transparent text-white border-white-50"
+               placeholder="ornek@@user.com" style="border-radius: 12px;">
+    </div>
+
+    <div class="mb-4 text-start">
+        <label class="form-label text-white-50 small fw-bold ms-2">ŞİFRE</label>
+        <input type="password" id="txtPassword" class="form-control form-control-lg bg-transparent text-white border-white-50"
+               placeholder="En az 6 karakter" style="border-radius: 12px;">
+    </div>
+
+    <button id="btnRegister" class="btn btn-warning w-100 fw-bold py-3 shadow-lg"
+            style="border-radius: 12px; background: #f59e0b; color: #0f172a; border: none;">
+        KAYIT OL
+    </button>
+
+    <div class="mt-4 text-center">
+        <p class="small text-white-50">
+            Zaten hesabın var mı?
+            <a href="/Auth/Login" class="text-white fw-bold text-decoration-none border-bottom border-white">Giriş Yap</a>
+        </p>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $("#btnRegister").click(function () {
+                const btn = $(this);
+                const originalText = btn.html();
+
+                var registerData = {
+                    username: $("#txtUsername").val(),
+                    email: $("#txtEmail").val(),
+                    password: $("#txtPassword").val()
+                };
+
+                if (!registerData.username || !registerData.email || !registerData.password) {
+                    showError("Lütfen tüm alanları doldurun!");
+                    return;
+                }
+
+                if (!registerData.email.toLowerCase().endsWith("@@user.com")) {
+                    showError("Güvenlik İhlali: Sadece '@@user.com' uzantılı adresler kabul edilir!");
+                    return;
+                }
+
+                var apiUrl = "https://localhost:7043/api/Auth/register";
+
+                btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span> Kayıt Yapılıyor...');
+                $("#authAlert").addClass("d-none");
+
+                $.ajax({
+                    url: apiUrl,
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(registerData),
+                    success: function (response) {
+                        alert(response.message);
+                        window.location.href = "/Auth/Login";
+                    },
+                    error: function (xhr) {
+                        btn.prop("disabled", false).html(originalText);
+                        let errorMsg = xhr.responseJSON?.message || "Kayıt işlemi başarısız oldu.";
+                        showError(errorMsg);
+                    }
+                });
+            });
+
+            function showError(msg) {
+                $("#authAlert").removeClass("d-none");
+                $("#authAlertText").text(msg);
+            }
+        });
+    </script>
+}

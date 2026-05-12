@@ -4,5 +4,6 @@ namespace News_Portal_1._1.Models
 {
     public class AppRole : IdentityRole
     {
+        public int UserId { get; set; }
     }
 }

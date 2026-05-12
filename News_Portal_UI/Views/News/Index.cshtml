@@ -1,0 +1,146 @@
+﻿@{
+    ViewData["Title"] = "Haber Yönetimi";
+    Layout = "_AdminLayout";
+}
+
+<div class="card shadow-lg border-0 rounded-4 mt-4">
+    <div class="card-header bg-dark text-white p-4 d-flex justify-content-between align-items-center rounded-top-4">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-newspaper text-warning me-2"></i> Sistemdeki Haberler</h4>
+        <a href="/News/Add" class="btn btn-success fw-bold rounded-pill shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i> Yeni Haber Ekle
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-center">
+                <thead class="table-light text-secondary text-uppercase small fw-bolder">
+                    <tr>
+                        <th class="text-start ps-4">Başlık</th>
+                        <th>Kategori</th>
+                        <th>Görüntülenme</th>
+                        <th>Beğeni</th>
+                        <th>Yorumlar</th>
+                        <th class="text-end pe-4">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody id="newsTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <div class="spinner-border text-primary mb-2" role="status"></div>
+                            <p>Haberler ve Kategoriler yükleniyor...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_URL = "https://localhost:7043/api/News";
+        const API_CATEGORY_URL = "https://localhost:7043/api/Category";
+        const adminToken = localStorage.getItem("myToken");
+
+        let categoryDictionary = {};
+
+        $(document).ready(function () {
+            if (!adminToken) {
+                window.location.href = "/Auth/Login";
+                return;
+            }
+            loadCategoriesAndThenNews();
+        });
+
+        function loadCategoriesAndThenNews() {
+            $.ajax({
+                url: API_CATEGORY_URL,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + adminToken },
+                success: function (categories) {
+                    categoryDictionary = {}; 
+                    $.each(categories, function (i, cat) {
+
+                        let cid = cat.id || cat.Id;
+                        let cname = cat.name || cat.Name;
+                        categoryDictionary[cid] = cname;
+                    });
+                    console.log("Kategoriler Hafızaya Alındı:", categoryDictionary);
+                    loadNews();
+                },
+                error: function () {
+                    console.error("Kategoriler çekilemedi!");
+                    loadNews();
+                }
+            });
+        }
+
+        function loadNews() {
+            $.ajax({
+                url: API_URL,
+                type: "GET",
+
+                headers: { "Authorization": "Bearer " + adminToken },
+                success: function (newsList) {
+                    if (!newsList || newsList.length === 0) {
+                        $("#newsTableBody").html('<tr><td colspan="6" class="text-center py-5 fw-bold text-warning">Henüz hiç haber yayınlanmamış!</td></tr>');
+                        return;
+                    }
+
+                    var rows = "";
+                    $.each(newsList, function (index, n) {
+                        var views = n.viewCount || 0;
+                        var likes = n.likeCount || 0;
+                        var categoryName = categoryDictionary[n.categoryId] || categoryDictionary[n.CategoryId] || "Kategori Yok";
+
+                        rows += `
+                            <tr>
+                                <td class="text-start ps-4 fw-bold text-dark">${n.title}</td>
+                                <td><span class="badge bg-info-subtle text-info border border-info px-3 py-2 rounded-pill">${categoryName}</span></td>
+                                <td class="text-secondary"><i class="bi bi-eye me-1"></i> ${views}</td>
+                                <td class="text-secondary"><i class="bi bi-heart-fill text-danger me-1"></i> ${likes}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-light fw-bold rounded-pill border shadow-sm" onclick="viewComments(${n.id})">
+                                        <i class="bi bi-chat-left-text me-1"></i> Yorumlar
+                                    </button>
+                                </td>
+                                <td class="text-end pe-4">
+                                    <a href="/News/Edit/${n.id}" class="btn btn-sm btn-outline-warning fw-bold rounded-pill me-1">
+                                        <i class="bi bi-pencil-square"></i> Düzenle
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger fw-bold rounded-pill" onclick="deleteNews(${n.id}, '${n.title}')">
+                                        <i class="bi bi-trash"></i> Sil
+                                    </button>
+                                </td>
+                            </tr>`;
+                    });
+                    $("#newsTableBody").html(rows);
+                },
+                error: function (xhr) {
+                    $("#newsTableBody").html(`<tr><td colspan="6" class="text-center py-5 text-danger fw-bold"><i class="bi bi-exclamation-octagon fs-3 d-block mb-2"></i> Haberler yüklenemedi! (Hata: ${xhr.status})</td></tr>`);
+                }
+            });
+        }
+
+        window.deleteNews = function (id, title) {
+            if (confirm(`'${title}' başlıklı haberi imha etmek istediğinize emin misiniz?`)) {
+                $.ajax({
+                    url: `${API_URL}/${id}`,
+                    type: "DELETE",
+                    headers: { "Authorization": "Bearer " + adminToken },
+                    success: function (res) {
+                        alert("Haber başarıyla silindi.");
+                        loadNews();
+                    },
+                    error: function (xhr) {
+                        alert("Hata: " + (xhr.responseJSON?.message || "Silme işlemi başarısız."));
+                    }
+                });
+            }
+        };
+
+        window.viewComments = function (newsId) {
+            window.location.href = "/Comment/Index/" + newsId;
+        };
+    </script>
+}

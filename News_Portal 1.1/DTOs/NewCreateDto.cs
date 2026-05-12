@@ -4,7 +4,7 @@
     {
         public string Title { get; set; }
         public string Content { get; set; }
-        public IFormFile? ImageFile { get; set; }
+        public List<IFormFile>? ImageFiles { get; set; }
         public int CategoryId { get; set; }
     }
 }

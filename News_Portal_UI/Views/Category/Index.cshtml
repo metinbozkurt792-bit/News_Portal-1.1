@@ -1,0 +1,105 @@
+﻿@{
+    ViewData["Title"] = "Kategori Yönetimi";
+    Layout = "_AdminLayout";
+}
+
+<div class="card shadow-lg border-0 rounded-4 mt-4">
+    <div class="card-header bg-dark text-white p-4 d-flex justify-content-between align-items-center rounded-top-4">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-tags-fill text-info me-2"></i> Sistemdeki Kategoriler</h4>
+        <a href="/Category/Add" class="btn btn-success fw-bold rounded-pill shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i> Yeni Kategori Ekle
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-secondary text-uppercase small fw-bolder">
+                    <tr>
+                        <th class="ps-4">ID</th>
+                        <th>Kategori Adı</th>
+                        <th>Açıklama</th>
+                        <th class="text-end pe-4">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody id="categoryTableBody">
+                    <tr>
+                        <td colspan="4" class="text-center py-5 text-muted">
+                            <div class="spinner-border text-primary mb-2" role="status"></div>
+                            <p>Kategoriler yükleniyor...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_URL = "https://localhost:7043/api/Category";
+        const token = localStorage.getItem("myToken");
+
+        $(document).ready(function () {
+            if (!token) {
+                window.location.href = "/Auth/Login";
+                return;
+            }
+            loadCategories();
+        });
+
+        function loadCategories() {
+            $.ajax({
+                url: API_URL,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (categories) {
+                    if (!categories || categories.length === 0) {
+                        $("#categoryTableBody").html('<tr><td colspan="4" class="text-center py-5 fw-bold text-muted">Henüz kategori eklenmemiş.</td></tr>');
+                        return;
+                    }
+                    var rows = "";
+                    $.each(categories, function (index, c) {
+                        rows += `
+                            <tr>
+                                <td class="ps-4 fw-bold text-secondary">#${c.id}</td>
+                                <td class="text-primary fw-bold">${c.name}</td>
+                                <td class="text-muted small">${c.description || 'Açıklama yok'}</td>
+                                <td class="text-end pe-4">
+                                    <a href="/Category/Update/${c.id}" class="btn btn-sm btn-outline-warning fw-bold rounded-pill me-2">
+                                        <i class="bi bi-pencil-square"></i> Güncelle
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger fw-bold rounded-pill" onclick="deleteCategory(${c.id}, '${c.name}')">
+                                        <i class="bi bi-trash"></i> Sil
+                                    </button>
+                                </td>
+                            </tr>`;
+                    });
+                    $("#categoryTableBody").html(rows);
+                },
+                error: function (xhr) {
+                    let errorMsg = "Kategoriler yüklenemedi.";
+                    if(xhr.status === 403) errorMsg = "Bu verileri görmeye yetkiniz yok (Sadece Admin).";
+
+                    $("#categoryTableBody").html(`<tr><td colspan="4" class="text-center py-5 text-danger fw-bold"><i class="bi bi-exclamation-triangle-fill fs-3 d-block mb-2"></i> ${errorMsg}</td></tr>`);
+                }
+            });
+        }
+
+        window.deleteCategory = function (id, name) {
+            if (confirm(`'${name}' adlı kategoriyi imha etmek (silmek) istediğinize emin misiniz?`)) {
+                $.ajax({
+                    url: API_URL + "/" + id,
+                    type: "DELETE",
+                    headers: { "Authorization": "Bearer " + token },
+                    success: function (res) {
+                        alert("Operasyon Başarılı: Kategori silindi.");
+                        loadCategories();
+                    },
+                    error: function (xhr) {
+                        alert("Hata: " + (xhr.responseJSON?.message || "Kategori silinemedi. Yetkinizi kontrol edin."));
+                    }
+                });
+            }
+        };
+    </script>
+}

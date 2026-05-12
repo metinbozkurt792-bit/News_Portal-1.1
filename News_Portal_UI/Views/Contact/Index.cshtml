@@ -1,0 +1,121 @@
+﻿@{
+    ViewData["Title"] = "İletişim ve Destek";
+    Layout = "_Layout";
+}
+
+<div class="container mt-5 mb-5">
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold text-dark"><i class="bi bi-headset text-primary"></i> İletişim ve Destek</h1>
+        <p class="text-muted fs-5">Sitemiz 7/24 hizmetinizdedir. Soru, görüş ve önerileriniz için bize yazın.</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0 rounded-4">
+                <div class="card-body p-5">
+
+                    <div id="successAlert" class="alert alert-success d-none rounded-3 fw-bold text-center mb-4">
+                        <i class="bi bi-check-circle-fill fs-4 d-block mb-2"></i>
+                        Mesajınız başarıyla iletildi. Teşekkür ederiz!
+                    </div>
+
+                    <form id="contactForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <label class="fw-bold mb-2">Adınız Soyadınız <span class="text-danger">*</span></label>
+                                <input type="text" id="txtName" class="form-control form-control-lg bg-light" placeholder="Adınız Soyadınız" required>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <label class="fw-bold mb-2">E-Posta Adresiniz <span class="text-danger">*</span></label>
+                                <input type="email" id="txtEmail" class="form-control form-control-lg bg-light" placeholder="ornek@mail.com" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="fw-bold mb-2">Konu <span class="text-danger">*</span></label>
+                            <input type="text" id="txtSubject" class="form-control form-control-lg bg-light" placeholder="Hangi konuda destek istiyorsunuz?" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="fw-bold mb-2">Mesajınız <span class="text-danger">*</span></label>
+                            <textarea id="txtMessage" class="form-control bg-light" rows="6" placeholder="Detayları buraya yazabilirsiniz..." required></textarea>
+                        </div>
+
+                        <div class="text-end mt-4">
+                            <button type="button" class="btn btn-primary btn-lg rounded-pill fw-bold px-5 shadow-sm" onclick="sendMessage()" id="btnSubmit">
+                                <i class="bi bi-send-fill"></i> Mesajı Gönder
+                            </button>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_CONTACT_URL = "https://localhost:7043/api/Contact";
+        const token = localStorage.getItem("myToken");
+
+        $(document).ready(function () {
+            if (!token) {
+                alert("Destek talebi oluşturabilmek için önce sisteme giriş yapmalısınız!");
+                window.location.href = "/Auth/Login";
+                return;
+            }
+
+            try {
+                let payload = JSON.parse(atob(token.split('.')[1]));
+                let username = payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] || payload.name;
+                if(username) $("#txtName").val(username);
+            } catch(e) {
+                console.warn("Kullanıcı bilgileri otomatik doldurulamadı.");
+            }
+        });
+
+        window.sendMessage = function () {
+            let name = $("#txtName").val().trim();
+            let email = $("#txtEmail").val().trim();
+            let subject = $("#txtSubject").val().trim();
+            let message = $("#txtMessage").val().trim();
+
+            if (!name || !email || !subject || !message) {
+                alert("Lütfen zorunlu tüm alanları doldurunuz!");
+                return;
+            }
+
+            if(!email.includes("@@") || !email.includes(".")) {
+                alert("Lütfen geçerli bir E-Posta adresi girin.");
+                return;
+            }
+
+            let contactData = {
+                senderName: name,
+                email: email,
+                subject: subject,
+                message: message
+            };
+
+            $("#btnSubmit").prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span> Gönderiliyor...');
+
+            $.ajax({
+                url: API_CONTACT_URL,
+                type: "POST",
+                headers: { "Authorization": "Bearer " + token },
+                contentType: "application/json",
+                data: JSON.stringify(contactData),
+                success: function (res) {
+                    $("#contactForm")[0].reset();
+                    $("#contactForm").slideUp();
+                    $("#successAlert").removeClass("d-none").hide().fadeIn();
+                },
+                error: function (xhr) {
+                    alert("Mesaj gönderilirken bir hata oluştu. Oturumunuzun süresi dolmuş olabilir.");
+                    $("#btnSubmit").prop("disabled", false).html('<i class="bi bi-send-fill"></i> Mesajı Gönder');
+                }
+            });
+        };
+    </script>
+}

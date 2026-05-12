@@ -1,0 +1,181 @@
+﻿@{
+    ViewData["Title"] = "Profil Ayarları";
+    Layout = "_AdminLayout";
+}
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow border-0 rounded-3 mb-4">
+                <div class="card-body text-center p-4">
+                    <div class="position-relative d-inline-block mb-3">
+                        <img id="imgProfile" src="https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff&size=150"
+                             class="rounded-circle border border-4 border-primary shadow-sm"
+                             style="width: 150px; height: 150px; object-fit: cover;"
+                             onerror="this.src='https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff&size=150';">
+                    </div>
+                    <h4 id="lblFullName" class="fw-bolder mb-1">Yükleniyor...</h4>
+                    <p id="lblEmail" class="text-muted mb-4"></p>
+
+                    <div class="mb-3 text-start">
+                        <label class="form-label fw-bold text-secondary small text-uppercase">Yeni Fotoğraf Seç</label>
+                        <input type="file" id="fileProfile" class="form-control" accept="image/*">
+                    </div>
+                    <button class="btn btn-primary w-100 fw-bold shadow-sm" onclick="uploadPhoto()" id="btnUpload">
+                        <i class="bi bi-cloud-upload me-2"></i>Fotoğrafı Güncelle
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card shadow border-0 rounded-3">
+                <div class="card-header bg-dark text-white p-3">
+                    <h5 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Güvenlik ve Profil Bilgileri</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-secondary small text-uppercase">Ad</label>
+                            <input type="text" id="txtFirstName" class="form-control form-control-lg fs-6">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-secondary small text-uppercase">Soyad</label>
+                            <input type="text" id="txtLastName" class="form-control form-control-lg fs-6">
+                        </div>
+                    </div>
+
+                    <hr class="text-muted mb-4" />
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-secondary small text-uppercase">Mevcut Şifre <span class="text-danger">*</span></label>
+                        <input type="password" id="txtCurrentPassword" class="form-control form-control-lg fs-6" placeholder="Değişiklik yapmak için mevcut şifrenizi girmelisiniz">
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-secondary small text-uppercase">Yeni Şifre</label>
+                            <input type="password" id="txtNewPassword" class="form-control form-control-lg fs-6" placeholder="Değiştirmek istemiyorsanız boş bırakın">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-secondary small text-uppercase">Yeni Şifre (Tekrar)</label>
+                            <input type="password" id="txtConfirmPassword" class="form-control form-control-lg fs-6" placeholder="Değiştirmek istemiyorsanız boş bırakın">
+                        </div>
+                    </div>
+
+                    <div class="text-end mt-2">
+                        <button class="btn btn-success fw-bold px-5 py-2 shadow-sm" onclick="updateProfile()" id="btnSave">
+                            <i class="bi bi-check-circle me-2"></i>Tüm Değişiklikleri Kaydet
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_BASE_URL = "https://localhost:7043";
+        const API_ADMIN_URL = API_BASE_URL + "/api/Admin";
+        const adminToken = localStorage.getItem("myToken");
+
+        $(document).ready(function () {
+            if (!adminToken) {
+                window.location.href = "/Auth/Login";
+                return;
+            }
+            loadAdminProfile();
+        });
+
+        function loadAdminProfile() {
+            $.ajax({
+                url: API_ADMIN_URL + "/me",
+                type: "GET",
+                headers: { "Authorization": "Bearer " + adminToken },
+                success: function (u) {
+                    $("#txtFirstName").val(u.firstName);
+                    $("#txtLastName").val(u.lastName);
+                    $("#lblFullName").text(u.firstName + " " + u.lastName);
+                    $("#lblEmail").text(u.email);
+
+                    if (u.profilePicture) {
+                        var fullImageUrl = u.profilePicture.startsWith("http")
+                            ? u.profilePicture
+                            : API_BASE_URL + u.profilePicture;
+
+                        $("#imgProfile").attr("src", fullImageUrl);
+                    }
+                },
+                error: function(xhr) {
+                    console.error("Profil yüklenemedi", xhr);
+                }
+            });
+        }
+
+        window.updateProfile = function () {
+            var newPass = $("#txtNewPassword").val();
+            var confirmPass = $("#txtConfirmPassword").val();
+
+            if (newPass && newPass !== confirmPass) {
+                alert("Sistem Uyarısı: Yeni şifreler uyuşmuyor!");
+                return;
+            }
+
+            var updateData = {
+                firstName: $("#txtFirstName").val(),
+                lastName: $("#txtLastName").val(),
+                currentPassword: $("#txtCurrentPassword").val(),
+                newPassword: newPass
+            };
+
+            $("#btnSave").prop("disabled", true).html('<span class="spinner-border spinner-border-sm me-2"></span>Kaydediliyor...');
+
+            $.ajax({
+                url: API_ADMIN_URL + "/update-profile",
+                type: "PUT",
+                headers: { "Authorization": "Bearer " + adminToken },
+                contentType: "application/json",
+                data: JSON.stringify(updateData),
+                success: function (res) {
+                    alert("Profil başarıyla güncellendi!");
+                    location.reload();
+                },
+                error: function (xhr) {
+                    $("#btnSave").prop("disabled", false).html('<i class="bi bi-check-circle me-2"></i>Tüm Değişiklikleri Kaydet');
+                    alert("Hata: " + (xhr.responseJSON?.message || "İşlem başarısız. Mevcut şifrenizi kontrol edin."));
+                }
+            });
+        };
+
+        // 3. FOTOĞRAF YÜKLEME
+        window.uploadPhoto = function () {
+            var fileInput = document.getElementById('fileProfile');
+            if (fileInput.files.length === 0) {
+                alert("Lütfen bir fotoğraf seçin!");
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            $("#btnUpload").prop("disabled", true).html('<span class="spinner-border spinner-border-sm me-2"></span>Yükleniyor...');
+
+            $.ajax({
+                url: API_ADMIN_URL + "/upload-profile-picture",
+                type: "POST",
+                headers: { "Authorization": "Bearer " + adminToken },
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (res) {
+                    alert("Fotoğraf başarıyla güncellendi!");
+                    location.reload();
+                },
+                error: function (xhr) {
+                    $("#btnUpload").prop("disabled", false).html('<i class="bi bi-cloud-upload me-2"></i>Fotoğrafı Güncelle');
+                    alert("Fotoğraf yüklenemedi. Dosya boyutu büyük olabilir veya oturumunuz kapanmış olabilir.");
+                }
+            });
+        };
+    </script>
+}

@@ -1,0 +1,89 @@
+﻿@{
+    ViewData["Title"] = "Yeni Kategori Ekle";
+    Layout = "_AdminLayout";
+}
+
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+        <div class="card shadow-lg border-0 rounded-4">
+            <div class="card-header bg-primary text-white p-4 rounded-top-4">
+                <h4 class="mb-0 fw-bold"><i class="bi bi-folder-plus me-2"></i> Yeni Kategori Kaydı</h4>
+            </div>
+            <div class="card-body p-4">
+                <form id="addCategoryForm">
+                    <div class="mb-3 text-start">
+                        <label class="form-label fw-bold text-secondary small text-uppercase">KATEGORİ ADI <span class="text-danger">*</span></label>
+                        <input type="text" id="txtName" class="form-control form-control-lg fs-6" placeholder="Örn: Teknoloji, Spor...">
+                    </div>
+
+                    <div class="mb-4 text-start">
+                        <label class="form-label fw-bold text-secondary small text-uppercase">AÇIKLAMA</label>
+                        <textarea id="txtDescription" class="form-control" rows="4" placeholder="Kategori içeriği hakkında kısa bir bilgi yazın..."></textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <a href="/Category/Index" class="btn btn-outline-secondary fw-bold rounded-pill px-4">
+                            <i class="bi bi-arrow-left me-1"></i> Vazgeç
+                        </a>
+                        <button type="button" class="btn btn-primary fw-bold rounded-pill px-5 shadow-sm" onclick="saveCategory()">
+                            <i class="bi bi-plus-circle me-1"></i> Kategoriyi Kaydet
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_URL = "https://localhost:7043/api/Category";
+        const adminToken = localStorage.getItem("myToken");
+
+        $(document).ready(function () {
+            if (!adminToken) {
+                console.error("Yetki belgesi bulunamadı!");
+                window.location.href = "/Auth/Login";
+                return;
+            }
+        });
+
+        window.saveCategory = function () {
+            var nameValue = $("#txtName").val().trim();
+            var descValue = $("#txtDescription").val().trim();
+
+            if (!nameValue) {
+                alert("Uyarı: Kategori adı boş bırakılamaz!");
+                return;
+            }
+
+            var categoryData = {
+                Name: nameValue,
+                Description: descValue
+            };
+
+            const btn = $("button.btn-primary");
+            const originalText = btn.html();
+            btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm me-2"></span> İşleniyor...');
+
+            $.ajax({
+                url: API_URL,
+                type: "POST",
+                headers: { "Authorization": "Bearer " + adminToken },
+                contentType: "application/json",
+                data: JSON.stringify(categoryData),
+                success: function (res) {
+                    alert("Başarılı: Yeni kategori sisteme eklendi!");
+                    window.location.href = "/Category/Index";
+                },
+                error: function (xhr) {
+                    btn.prop("disabled", false).html(originalText);
+
+                    console.error("API Hatası:", xhr);
+                    let errMsg = xhr.responseJSON?.Message || xhr.responseJSON?.message || "Kayıt başarısız! Yetkiniz olmayabilir veya sunucu hatası oluştu.";
+                    alert("Hata: " + errMsg);
+                }
+            });
+        };
+    </script>
+}

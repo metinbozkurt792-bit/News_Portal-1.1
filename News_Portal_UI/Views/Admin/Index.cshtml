@@ -1,0 +1,80 @@
+﻿@{
+    ViewData["Title"] = "Admin Paneli";
+    Layout = "_AdminLayout";
+}
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2 class="mb-4">🚀 Hoş Geldiniz, Yönetici</h2>
+        </div>
+    </div>
+
+    <div class="row mb-5">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white shadow">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase">Yayınlanan Haberler</h6>
+                        <h2 id="newsCount" class="display-4 fw-bold">0</h2>
+                    </div>
+                    <i class="bi bi-newspaper fs-1"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white shadow">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase">Toplam Kullanıcılar</h6>
+                        <h2 id="userCount" class="display-4 fw-bold">0</h2>
+                    </div>
+                    <i class="bi bi-people fs-1"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white shadow">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase">Toplam Kategoriler</h6>
+                        <h2 id="categoryCount" class="display-4 fw-bold">0</h2>
+                    </div>
+                    <i class="bi bi-folder fs-1"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_URL = "https://localhost:7043/api/Admin";
+        const adminToken = localStorage.getItem("myToken");
+
+        $(document).ready(function () {
+            if (!adminToken) {
+                window.location.href = "/Auth/Login";
+                return;
+            }
+            loadDashboardStats();
+        });
+
+        function loadDashboardStats() {
+            $.ajax({
+                url: API_URL + "/dashboard-stats",
+                type: "GET",
+                headers: { "Authorization": "Bearer " + adminToken },
+                success: function (data) {
+                    $("#newsCount").text(data.newsCount);
+                    $("#userCount").text(data.userCount);
+                    $("#categoryCount").text(data.categoryCount);
+                },
+                error: function (xhr) {
+                    console.log("İstatistikler yüklenemedi.", xhr);
+                    $("#newsCount, #userCount, #categoryCount").text("Hata");
+                }
+            });
+        }
+    </script>
+}

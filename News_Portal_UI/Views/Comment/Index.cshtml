@@ -1,0 +1,281 @@
+﻿@{
+    ViewData["Title"] = "Habere Özel Yorumlar";
+}
+
+<div class="card mb-5 border-0 rounded-4 overflow-hidden shadow-lg" id="newsSummaryCard" style="display:none; position: relative; min-height: 350px;">
+    <img id="imgCover" src="/images/default-news.png" class="w-100 h-100" style="object-fit: cover; position: absolute; top: 0; left: 0; z-index: 1;" alt="Kapak">
+    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.8) 100%); z-index: 2;"></div>
+
+    <div class="card-body d-flex flex-column justify-content-end p-5" style="position: relative; z-index: 3; min-height: 350px;">
+        <div>
+            <span id="lblCategory" class="badge bg-danger mb-3 px-3 py-2 text-uppercase fw-bold shadow" style="letter-spacing: 1px; font-size: 0.9rem;">
+                Kategori
+            </span>
+            <h1 class="card-title fw-bolder text-white mb-2" id="lblTitle" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.6); font-size: 2.8rem; line-height: 1.2;">
+                Haber Başlığı
+            </h1>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-4 mt-4">
+    <div class="card-body p-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+            <div class="d-flex align-items-center">
+                <a id="btnBackToNews" href="javascript:void(0)" onclick="backToNews()" class="btn btn-outline-secondary rounded-pill px-3 py-2 me-3 shadow-sm fw-bold">
+                    <i class="bi bi-arrow-left-circle-fill me-1"></i> Habere Dön
+                </a>
+                <h4 class="mb-0 fw-bold text-dark"><i class="bi bi-chat-text-fill text-primary me-2"></i> Yorumlar</h4>
+            </div>
+
+            <a id="btnAddComment" href="#" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
+                <i class="bi bi-pencil-square"></i> Bir yorum yaz...
+            </a>
+        </div>
+
+        <div id="commentListContainer">
+            <div class="text-center text-muted py-5">
+                <div class="spinner-border text-primary mb-3" role="status"></div>
+                <p>Yorumlar yükleniyor...</p>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_COMMENT_URL = "https://localhost:7043/api/Comment";
+        const API_NEWS_URL = "https://localhost:7043/api/News";
+        const API_CAT_URL = "https://localhost:7043/api/Category";
+        const token = localStorage.getItem("myToken");
+
+        function getAuthInfo() {
+            if (!token) return { name: null, role: null };
+            try {
+                let payload = JSON.parse(atob(token.split('.')[1]));
+                return {
+                    name: payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] || payload.name || "@User.Identity?.Name",
+                    role: payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || payload.role || null
+                };
+            } catch(e) { return { name: "@User.Identity?.Name", role: null }; }
+        }
+
+        const auth = getAuthInfo();
+        const currentUserName = auth.name;
+        const currentUserRole = auth.role;
+
+        const userUniqueKey = token ? token.substring(token.length - 20) : "anonim";
+        const pathArray = window.location.pathname.split('/');
+        const currentNewsId = pathArray[pathArray.length - 1];
+
+        let categoryDict = {};
+
+        $(document).ready(function () {
+            if (!token) {
+                alert("Yorumlar ve tartışmalar sadece üyelerimize özeldir. Lütfen önce giriş yapın!");
+                window.location.href = "/Auth/Login";
+                return;
+            }
+
+            if (!currentNewsId || isNaN(currentNewsId)) {
+                alert("Geçersiz Haber Kimliği!");
+                window.location.href = "/Home/Index";
+                return;
+            }
+
+            $("#btnAddComment").attr("href", "/Comment/Add/" + currentNewsId);
+            loadCategoriesThenNews();
+        });
+
+        window.backToNews = function () {
+            if (currentNewsId) {
+                window.location.href = "/Home/NewsDetail/" + currentNewsId;
+            } else {
+                window.location.href = "/Home/Index";
+            }
+        };
+
+        function loadCategoriesThenNews() {
+            $.ajax({
+                url: API_CAT_URL,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (categories) {
+                    $.each(categories, function (i, cat) { categoryDict[cat.id] = cat.name; });
+                    fetchNewsSummary();
+                },
+                error: function (xhr) {
+                    if(xhr.status === 401) window.location.href = "/Auth/Login";
+                    fetchNewsSummary();
+                }
+            });
+        }
+
+        function fetchNewsSummary() {
+            $.ajax({
+                url: API_NEWS_URL + "/" + currentNewsId,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (n) {
+                    $("#lblTitle").text(n.title);
+                    $("#lblCategory").text(categoryDict[n.categoryId] || "Genel");
+
+                    if (n.imageUrl && n.imageUrl.trim() !== "") {
+                        $("#imgCover").attr("src", "https://localhost:7043" + n.imageUrl.split(',')[0]);
+                    }
+                    $("#newsSummaryCard").fadeIn();
+
+                    loadComments();
+                },
+                error: function (xhr) {
+                    if(xhr.status === 401) window.location.href = "/Auth/Login";
+                    else {
+                        alert("Haber verileri çekilemedi!");
+                        window.location.href = "/Home/Index";
+                    }
+                }
+            });
+        }
+
+        function loadComments() {
+            $.ajax({
+                url: API_COMMENT_URL + "/news/" + currentNewsId,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (comments) {
+                    var html = "";
+                    if (!comments || comments.length === 0) {
+                        $("#commentListContainer").html('<div class="alert alert-light text-center text-muted py-4 border-0">Bu habere henüz yorum yapılmamış. İlk yorumu siz yapın!</div>');
+                        return;
+                    }
+
+                    $.each(comments, function (index, c) {
+                        let avatarUrl = "https://ui-avatars.com/api/?name=" + encodeURIComponent(c.userName) + "&background=random&color=fff&bold=true";
+                        let memoryKey = "comment_vote_" + c.id + "_" + userUniqueKey;
+                        let userVote = localStorage.getItem(memoryKey);
+
+                        let likeClass = userVote === "like" ? "btn-success text-white" : "btn-outline-success";
+                        let dislikeClass = userVote === "dislike" ? "btn-danger text-white" : "btn-outline-danger";
+
+                        let dateString = "";
+                        if (c.createdAt) {
+                            let d = new Date(c.createdAt);
+                            dateString = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }) + " " + d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                        }
+
+                        let isOwner = currentUserName && c.userName === currentUserName;
+                        let isAdmin = currentUserRole === "Admin";
+
+                        let editBtn = isOwner ? `<a href="/Comment/Edit/${c.id}" class="btn btn-sm btn-outline-warning fw-bold text-dark me-2 border-0 shadow-sm">✏️ Düzenle</a>` : "";
+                        let deleteBtn = (isOwner || isAdmin) ? `<button class="btn btn-sm btn-outline-danger fw-bold border-0 shadow-sm" onclick="deleteComment(${c.id})">🗑️ Sil</button>` : "";
+
+                        html += `
+                            <div class="d-flex mb-4 pb-4 border-bottom comment-item">
+                                <div class="flex-shrink-0">
+                                    <img src="${avatarUrl}" alt="Profil" class="rounded-circle shadow-sm" style="width: 55px; height: 55px; border: 2px solid #e9ecef;">
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <div>
+                                            <h6 class="fw-bold mb-0 text-dark d-inline-block" style="font-size: 1.1rem;">${c.userName}</h6>
+                                            ${dateString ? `<span class="text-muted small ms-2"><i class="bi bi-clock"></i> ${dateString}</span>` : ''}
+                                        </div>
+                                        <div>
+                                            ${editBtn}
+                                            ${deleteBtn}
+                                        </div>
+                                    </div>
+                                    <p class="mb-0 text-secondary mt-2" style="font-size: 1rem; line-height: 1.6;">${c.text}</p>
+                                    <div class="mt-3">
+                                        <button class="btn btn-sm ${likeClass} rounded-pill fw-bold me-2 px-3 vote-btn shadow-sm" onclick="voteComment(${c.id}, 'like')">
+                                            👍 <span id="likeCount_${c.id}">${c.likeCount || 0}</span>
+                                        </button>
+                                        <button class="btn btn-sm ${dislikeClass} rounded-pill fw-bold px-3 vote-btn shadow-sm" onclick="voteComment(${c.id}, 'dislike')">
+                                            👎 <span id="dislikeCount_${c.id}">${c.dislikeCount || 0}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    $("#commentListContainer").html(html);
+                },
+                error: function (xhr) {
+                    if(xhr.status === 401) window.location.href = "/Auth/Login";
+                    else $("#commentListContainer").html('<div class="alert alert-light text-center text-muted py-4 border-0">Yorumlar şu an yüklenemiyor.</div>');
+                }
+            });
+        }
+
+        window.voteComment = function (commentId, actionType) {
+            let memoryKey = "comment_vote_" + commentId + "_" + userUniqueKey;
+            let currentVote = localStorage.getItem(memoryKey);
+
+            $(".vote-btn").prop("disabled", true);
+
+            $.ajax({
+                url: API_COMMENT_URL + "/" + commentId + "/" + actionType,
+                type: "POST",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (res) {
+                    if (currentVote === actionType) {
+                        localStorage.removeItem(memoryKey);
+                    } else {
+                        localStorage.setItem(memoryKey, actionType);
+                    }
+                    loadComments();
+                },
+                error: function (xhr) {
+                    alert(xhr.responseJSON?.message || "Oylama başarısız oldu!");
+                    $(".vote-btn").prop("disabled", false);
+                }
+            });
+        };
+
+        window.deleteComment = function (id) {
+            if (confirm("Bu yorumu kalıcı olarak silmek istediğinize emin misiniz?")) {
+                $.ajax({
+                    url: API_COMMENT_URL + "/" + id,
+                    type: "DELETE",
+                    headers: { "Authorization": "Bearer " + token },
+                    success: function (res) {
+                        loadComments();
+                    },
+                    error: function (xhr) {
+                        alert(xhr.responseJSON?.message || "Yorum silinemedi!");
+                    }
+                });
+            }
+        };
+    </script>
+
+    <style>
+        .comment-item {
+            transition: background-color 0.3s ease;
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .comment-item:hover {
+            background-color: #fcfcfc;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+
+        #btnBackToNews:hover {
+            background-color: #6c757d;
+            color: white;
+            transform: translateX(-5px);
+            transition: all 0.3s ease;
+        }
+
+        .vote-btn {
+            transition: all 0.2s;
+        }
+
+            .vote-btn:hover {
+                transform: scale(1.05);
+            }
+    </style>
+}

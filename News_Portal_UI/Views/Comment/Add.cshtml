@@ -1,0 +1,103 @@
+﻿@{
+    ViewData["Title"] = "Yeni Yorum Ekle";
+}
+
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+        <div class="card shadow-lg border-0 rounded-4">
+            <div class="card-header bg-primary text-white p-4 rounded-top-4">
+                <h4 class="mb-0 fw-bold"><i class="bi bi-pencil-fill me-2"></i> Yeni Yorum Kaydı</h4>
+            </div>
+            <div class="card-body p-4">
+                <form id="commentForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-secondary">Haber ID (Otomatik Tanımlandı)</label>
+                        <input type="number" id="txtNewsId" class="form-control bg-light border-0 shadow-sm" readonly>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark">Yorumunuz <span class="text-danger">*</span></label>
+                        <textarea id="txtText" class="form-control border-0 shadow-sm" rows="5" placeholder="Haber hakkındaki düşüncelerinizi buraya yazın..."></textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" onclick="goBack()">
+                            <i class="bi bi-x-circle me-1"></i> Vazgeç
+                        </button>
+                        <button type="button" class="btn btn-success btn-lg rounded-pill px-5 fw-bold shadow" onclick="saveComment()">
+                            <i class="bi bi-send-fill me-1"></i> Yorumu Gönder
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_URL = "https://localhost:7043/api/Comment";
+        const token = localStorage.getItem("myToken");
+
+        const pathArray = window.location.pathname.split('/');
+        const currentNewsId = pathArray[pathArray.length - 1];
+
+        $(document).ready(function () {
+            if (!token) {
+                alert("Yorum yapabilmek için sisteme giriş yapmanız gerekmektedir. Anasayfaya yönlendiriliyorsunuz...");
+                window.location.href = "/Auth/Login";
+                return;
+            }
+
+            if(currentNewsId && !isNaN(currentNewsId)) {
+                $("#txtNewsId").val(currentNewsId);
+            } else {
+                alert("Haber kimliği bulunamadı! Liste merkezine dönülüyor.");
+                window.location.href = "/News/Index";
+            }
+        });
+
+        window.goBack = function() {
+            window.location.href = "/Comment/Index/" + currentNewsId;
+        };
+
+        window.saveComment = function () {
+            var textVal = $("#txtText").val().trim();
+
+            if(!textVal) {
+                alert("Karargâh Uyarısı: Yorum alanı boş bırakılamaz!");
+                return;
+            }
+
+            var commentData = {
+                newsId: parseInt($("#txtNewsId").val()),
+                text: textVal
+            };
+
+            const btn = $("button.btn-success");
+            const originalText = btn.html();
+            btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm me-2"></span> Gönderiliyor...');
+
+            $.ajax({
+                url: API_URL,
+                type: "POST",
+                headers: { "Authorization": "Bearer " + token },
+                contentType: "application/json",
+                data: JSON.stringify(commentData),
+                success: function (res) {
+                    alert("Operasyon Başarılı: " + (res.message || "Yorumunuz yayımlandı."));
+                    goBack();
+                },
+                error: function (xhr) {
+                    btn.prop("disabled", false).html(originalText);
+                    if (xhr.status === 401) {
+                        alert("Oturum süreniz dolmuş! Lütfen tekrar giriş yapın.");
+                        window.location.href = "/Auth/Login";
+                    } else {
+                        alert("Kayıt Başarısız! Lütfen verileri kontrol edin.");
+                    }
+                }
+            });
+        };
+    </script>
+}

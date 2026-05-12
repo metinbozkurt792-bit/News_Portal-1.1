@@ -1,0 +1,154 @@
+﻿@{
+    ViewData["Title"] = "Profilim";
+    Layout = "_Layout";
+}
+
+<div class="row justify-content-center mt-5 mb-5">
+    <div class="col-md-6">
+        <div class="card shadow-lg border-0 rounded-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center p-4 rounded-top-4">
+                <h4 class="mb-0 fw-bold"><i class="bi bi-person-badge-fill me-2"></i> Profil Bilgilerim</h4>
+                <a href="/Profile/ChangePassword" class="btn btn-warning fw-bold rounded-pill shadow-sm">🔑 Şifre Değiştir</a>
+            </div>
+            <div class="card-body p-5">
+
+                <div class="text-center mb-4 pb-4 border-bottom">
+                    <img id="imgProfile" src="/images/default-avatar.png"
+                         onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=Asker&background=0D8ABC&color=fff&size=130';"
+                         class="rounded-circle shadow mb-3" style="width: 130px; height: 130px; object-fit: cover; border: 4px solid #0D8ABC;">
+                    <br>
+                    <input type="file" id="fileProfilePic" class="d-none" accept="image/*" onchange="uploadProfilePicture(this)">
+                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold rounded-pill" onclick="$('#fileProfilePic').click()">
+                        <i class="bi bi-camera-fill"></i> Fotoğrafı Değiştir
+                    </button>
+                </div>
+
+                <form id="profileForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Kullanıcı Adı</label>
+                        <input type="text" id="txtUsername" class="form-control form-control-lg bg-light text-secondary" readonly>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Email Adresi</label>
+                        <input type="email" id="txtEmail" class="form-control form-control-lg bg-light text-secondary" readonly>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Adınız</label>
+                            <input type="text" id="txtFirstName" class="form-control form-control-lg border-primary" placeholder="Adınızı girin">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Soyadınız</label>
+                            <input type="text" id="txtLastName" class="form-control form-control-lg border-primary" placeholder="Soyadınızı girin">
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-success btn-lg w-100 fw-bold rounded-pill shadow-sm" onclick="updateProfile()">
+                        <i class="bi bi-save2-fill"></i> Bilgilerimi Güncelle
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_URL = "https://localhost:7043/api/Profile";
+        const token = localStorage.getItem("myToken");
+
+        $(document).ready(function () {
+            if (!token) {
+                alert("Önce giriş yapmalısınız!");
+                window.location.href = "/Auth/Login";
+                return;
+            }
+
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const role = payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || payload.role;
+                if (role === "Admin") {
+                    window.location.href = "/Auth/AccessDeniedForAdmin";
+                    return;
+                }
+            } catch (e) { console.warn("Kontrol doğrulaması atlandı."); }
+
+            loadProfile();
+        });
+
+        function loadProfile() {
+            $.ajax({
+                url: API_URL,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (user) {
+                    $("#txtUsername").val(user.username);
+                    $("#txtEmail").val(user.email);
+                    $("#txtFirstName").val(user.firstName);
+                    $("#txtLastName").val(user.lastName);
+
+                    if(user.profilePictureUrl) {
+                        $("#imgProfile").attr("src", "https://localhost:7043" + user.profilePictureUrl);
+                    } else if (user.firstName) {
+                        $("#imgProfile").attr("src", `https://ui-avatars.com/api/?name=${user.firstName}+${user.lastName}&background=0D8ABC&color=fff&size=130`);
+                    }
+                },
+                error: function (xhr) {
+                    alert("Profil bilgileri yüklenemedi. Oturumunuzun süresi dolmuş olabilir.");
+                }
+            });
+        }
+
+        window.updateProfile = function () {
+            let fName = $("#txtFirstName").val().trim();
+            let lName = $("#txtLastName").val().trim();
+
+            if (!fName || !lName) {
+                alert("Sistem Uyarısı: Ad ve Soyad alanları boş bırakılamaz!");
+                return;
+            }
+
+            var updateData = {
+                FirstName: fName,
+                LastName: lName
+            };
+
+            $.ajax({
+                url: API_URL + "/update",
+                type: "PUT",
+                headers: { "Authorization": "Bearer " + token },
+                contentType: "application/json",
+                data: JSON.stringify(updateData),
+                success: function (res) {
+                    alert("Tebrikler: " + res.message);
+                },
+                error: function (xhr) {
+                    alert("Profil güncellenemedi! Hata: " + (xhr.responseJSON?.message || "Doğrulama hatası."));
+                }
+            });
+        };
+
+        window.uploadProfilePicture = function (input) {
+            if (input.files && input.files[0]) {
+                var formData = new FormData();
+                formData.append("file", input.files[0]);
+
+                $.ajax({
+                    url: API_URL + "/upload-picture",
+                    type: "POST",
+                    headers: { "Authorization": "Bearer " + token },
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function (res) {
+                        alert(res.message);
+                        $("#imgProfile").attr("src", "https://localhost:7043" + res.newImageUrl);
+                    },
+                    error: function (xhr) {
+                        alert("Fotoğraf yüklenirken bir hata oluştu! " + (xhr.responseJSON?.message || ""));
+                    }
+                });
+            }
+        };
+    </script>
+}

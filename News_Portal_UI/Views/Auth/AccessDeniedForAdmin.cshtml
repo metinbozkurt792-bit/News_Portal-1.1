@@ -1,0 +1,32 @@
+﻿@{
+    ViewData["Title"] = "Protokol Sınırı";
+    Layout = "_AdminLayout";
+}
+
+<div class="container mt-5 text-center">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-0 shadow-lg rounded-4 p-5 bg-white">
+                <div class="mb-4">
+                    <i class="bi bi-shield-lock-fill text-warning" style="font-size: 5rem; filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.4));"></i>
+                </div>
+                <h1 class="display-6 fw-bold text-dark mb-3">SİSTEM UYARISI ⚠️</h1>
+                <p class="fs-5 text-muted mb-4">
+                    Sayın Yönetici, girmeye çalıştığınız sayfa yalnızca üyelerimize özeldir.
+                    Veri güvenliği ve mahremiyet gereği, yönetici yetkisiyle bu sayfada işlem yapmanız kısıtlanmıştır.
+                </p>
+                <div class="p-3 bg-light rounded-3 mb-4 border-start border-4 border-warning">
+                    <small class="text-dark fw-bold">Yetki Tespit Edildi: <span class="badge bg-dark">Sistem Yöneticisi</span></small>
+                </div>
+                <div class="d-grid gap-3 d-sm-flex justify-content-sm-center">
+                    <a href="/Admin/Index" class="btn btn-dark btn-lg rounded-pill px-5 fw-bold shadow">
+                        <i class="bi bi-speedometer2 me-2"></i>Admin Paneline Dön
+                    </a>
+                    <a href="/Admin/Settings" class="btn btn-outline-primary btn-lg rounded-pill px-5 fw-bold">
+                        <i class="bi bi-person-gear me-2"></i>Kendi Profiline Git
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

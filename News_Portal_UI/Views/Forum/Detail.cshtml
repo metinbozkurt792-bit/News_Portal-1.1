@@ -1,0 +1,282 @@
+﻿@{
+    ViewData["Title"] = "Konu Detayı";
+    Layout = "_Layout";
+}
+
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-9">
+
+            <a href="/Forum/Index" class="btn btn-outline-secondary mb-4 rounded-pill fw-bold shadow-sm">
+                <i class="bi bi-arrow-left"></i> Foruma Dön
+            </a>
+
+            <div id="mainTopicArea" style="display: none;">
+                <div class="card shadow-lg border-0 rounded-4 mb-5">
+                    <div class="card-header bg-primary text-white p-4 rounded-top-4">
+                        <h2 class="fw-bold mb-0" id="lblTitle">Konu Başlığı Yükleniyor...</h2>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center mb-4 border-bottom pb-3">
+                            <img id="imgAuthor" src="" class="rounded-circle shadow-sm me-3" style="width: 50px; height: 50px;">
+                            <div>
+                                <h6 class="fw-bold mb-0" id="lblAuthor">Yazar Adı</h6>
+                                <small class="text-muted" id="lblDate">Tarih</small>
+                            </div>
+                            <div class="ms-auto text-muted fw-bold">
+                                <i class="bi bi-eye"></i> <span id="lblViews">0</span> Okunma
+                            </div>
+                        </div>
+                        <p class="fs-5" id="lblContent" style="white-space: pre-wrap; line-height: 1.8;">Konu içeriği...</p>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="mb-5" />
+
+            <h4 class="fw-bold mb-4"><i class="bi bi-chat-dots-fill text-success"></i> Cevaplar</h4>
+            <div id="repliesList" class="mb-5">
+                <div class="text-center text-muted">Cevaplar yükleniyor...</div>
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-4 bg-light" id="replyFormBox">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">Cevap Yaz</h5>
+
+                    <div id="replyIndicator" class="alert alert-info d-none py-2 px-3 mb-3 d-flex justify-content-between align-items-center rounded-3">
+                        <span id="replyToText"></span>
+                        <button class="btn btn-sm btn-danger fw-bold rounded-pill" onclick="cancelReply()">Vazgeç</button>
+                    </div>
+
+                    <textarea id="txtReply" class="form-control mb-3 border-0 shadow-sm" rows="3" placeholder="Bu konuya cevabınız nedir?"></textarea>
+                    <div class="text-end">
+                        <button class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" onclick="postReply()">Cevabı Gönder</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_FORUM_URL = "https://localhost:7043/api/Forum";
+        const currentTopicId = "@ViewBag.TopicId";
+        const token = localStorage.getItem("myToken");
+
+        function getAuthInfo() {
+            if (!token) return { name: null, role: null };
+            try {
+                let payload = JSON.parse(atob(token.split('.')[1]));
+                return {
+                    name: payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] || payload.name || "@User.Identity?.Name",
+                    role: payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || payload.role || null
+                };
+            } catch(e) {
+                return { name: "@User.Identity?.Name", role: null };
+            }
+        }
+
+        const auth = getAuthInfo();
+        const currentUserName = auth.name;
+        const currentUserRole = auth.role;
+        let selectedParentReplyId = null;
+
+        $(document).ready(function () {
+            if (!token) {
+                window.location.href = "/Auth/Login";
+                return;
+            }
+
+
+            if (currentTopicId && !isNaN(currentTopicId) && currentTopicId !== "0") {
+                loadTopicDetail();
+                loadReplies();
+            } else {
+                alert("Geçersiz Konu!");
+                window.location.href = "/Forum/Index";
+            }
+        });
+
+        function loadTopicDetail() {
+            $.ajax({
+                url: API_FORUM_URL + "/topics/" + currentTopicId,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (t) {
+                    $("#lblTitle").text(t.title);
+                    $("#lblContent").text(t.content);
+                    $("#lblAuthor").text(t.userName);
+                    $("#lblViews").text(t.viewCount);
+                    let dateStr = new Date(t.createdAt).toLocaleString("tr-TR");
+                    $("#lblDate").text(dateStr);
+                    let avatarUrl = "https://ui-avatars.com/api/?name=" + encodeURIComponent(t.userName) + "&background=0D8ABC&color=fff&bold=true";
+                    $("#imgAuthor").attr("src", avatarUrl);
+                    $("#mainTopicArea").fadeIn();
+                },
+                error: function () {
+                    alert("Konu bulunamadı!");
+                    window.location.href = "/Forum/Index";
+                }
+            });
+        }
+
+        function loadReplies() {
+            $.ajax({
+                url: API_FORUM_URL + "/topics/" + currentTopicId + "/replies",
+                type: "GET",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (replies) {
+                    if (!replies || replies.length === 0) {
+                        $("#repliesList").html('<div class="alert alert-light text-center border-0 text-muted">Henüz cevap yazılmamış.</div>');
+                        return;
+                    }
+
+                    let parents = replies.filter(r => !r.parentReplyId);
+                    let children = replies.filter(r => r.parentReplyId);
+
+                    var html = "";
+                    $.each(parents, function (index, p) {
+                        html += buildReplyCard(p, false, p.id);
+                        let myChildren = children.filter(c => c.parentReplyId === p.id);
+                        $.each(myChildren, function(i, c) {
+                            html += buildReplyCard(c, true, p.id);
+                        });
+                    });
+                    $("#repliesList").html(html);
+                }
+            });
+        }
+
+        function buildReplyCard(r, isChild, rootParentId) {
+            let avatarUrl = "https://ui-avatars.com/api/?name=" + encodeURIComponent(r.userName) + "&background=random&color=fff&bold=true";
+            let dateStr = new Date(r.createdAt).toLocaleString("tr-TR");
+            let safeContent = r.content.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+
+            let userVote = localStorage.getItem("forum_reply_vote_" + r.id);
+            let likeClass = userVote === "like" ? "btn-success text-white" : "btn-outline-success";
+            let dislikeClass = userVote === "dislike" ? "btn-danger text-white" : "btn-outline-danger";
+
+            let isOwner = currentUserName && r.userName === currentUserName;
+            let isAdmin = currentUserRole === "Admin";
+
+            let actionButtons = "";
+            if (isOwner) {
+                actionButtons += `<button class="btn btn-sm btn-link text-warning p-0 me-3 text-decoration-none fw-bold" onclick="editReply(${r.id}, '${safeContent}')">✏️ Düzenle</button>`;
+            }
+            if (isOwner || isAdmin) {
+                actionButtons += `<button class="btn btn-sm btn-link text-danger p-0 text-decoration-none fw-bold" onclick="deleteReply(${r.id})">🗑️ Sil</button>`;
+            }
+
+            let marginClass = isChild ? "ms-5 mt-2 border-start border-4 border-info ps-3 bg-light" : "mb-4 bg-white border-light";
+            let childBadge = isChild ? `<span class="badge bg-secondary ms-2">↳ Yanıt</span>` : "";
+            let replyBtn = `<button class="btn btn-sm btn-link text-primary p-0 text-decoration-none fw-bold me-3" onclick="setParentReply(${rootParentId}, '${r.userName}')">↩️ Yanıtla</button>`;
+
+            return `
+                <div class="d-flex ${isChild ? 'mb-2' : ''}">
+                    <div class="flex-shrink-0 ${isChild ? 'd-none d-sm-block' : ''}">
+                        <img src="${avatarUrl}" class="rounded-circle shadow-sm" style="width: ${isChild ? '35px' : '45px'}; height: ${isChild ? '35px' : '45px'};">
+                    </div>
+                    <div class="flex-grow-1 ms-3 p-3 rounded-4 shadow-sm border ${marginClass} w-100">
+                        <div class="d-flex justify-content-between mb-2">
+                            <div>
+                                <strong class="text-dark">${r.userName}</strong> ${childBadge}
+                            </div>
+                            <small class="text-muted">${dateStr}</small>
+                        </div>
+                        <p class="mb-3 text-secondary" style="font-size: ${isChild ? '0.95rem' : '1.05rem'};">${r.content}</p>
+
+                        <div class="d-flex align-items-center border-top pt-2 mt-2">
+                            <div>
+                                <button class="btn btn-sm ${likeClass} rounded-pill fw-bold me-2 px-2 py-0 vote-btn" onclick="voteReply(${r.id}, 'like')">
+                                    👍 ${r.likeCount || 0}
+                                </button>
+                                <button class="btn btn-sm ${dislikeClass} rounded-pill fw-bold px-2 py-0 vote-btn" onclick="voteReply(${r.id}, 'dislike')">
+                                    👎 ${r.dislikeCount || 0}
+                                </button>
+                            </div>
+                            <div class="ms-auto">
+                                ${replyBtn}
+                                ${actionButtons}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.setParentReply = function (rootParentId, userName) {
+            selectedParentReplyId = rootParentId;
+            $("#replyToText").html(`<strong>@@${userName}</strong> adlı kullanıcıya yanıt veriyorsunuz...`);
+            $("#replyIndicator").removeClass("d-none");
+            $("#txtReply").val(`@@${userName} `).focus();
+            $('html, body').animate({ scrollTop: $("#replyFormBox").offset().top - 100 }, 500);
+        };
+
+        window.cancelReply = function () {
+            selectedParentReplyId = null;
+            $("#replyIndicator").addClass("d-none");
+            $("#txtReply").val("");
+        };
+
+        window.postReply = function () {
+            let content = $("#txtReply").val().trim();
+            if (!content) { alert("Lütfen bir cevap yazın!"); return; }
+            let replyData = { topicId: parseInt(currentTopicId), content: content, parentReplyId: selectedParentReplyId };
+            $.ajax({
+                url: API_FORUM_URL + "/replies",
+                type: "POST",
+                headers: { "Authorization": "Bearer " + token },
+                contentType: "application/json",
+                data: JSON.stringify(replyData),
+                success: function () { cancelReply(); loadReplies(); },
+                error: function () { alert("Cevap gönderilirken bir hata oluştu."); }
+            });
+        };
+
+        window.voteReply = function (replyId, actionType) {
+            $(".vote-btn").prop("disabled", true);
+            $.ajax({
+                url: API_FORUM_URL + "/replies/" + replyId + "/" + actionType,
+                type: "POST",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (res) {
+                    loadReplies();
+                },
+                error: function (xhr) {
+                    alert("Oylama başarısız oldu.");
+                    $(".vote-btn").prop("disabled", false);
+                }
+            });
+        };
+
+        window.editReply = function (id, oldContent) {
+            let newContent = prompt("Cevabınızı düzenleyin:", oldContent);
+            if (newContent && newContent.trim() !== "" && newContent !== oldContent) {
+                let updateData = { topicId: parseInt(currentTopicId), content: newContent.trim() };
+                $.ajax({
+                    url: API_FORUM_URL + "/replies/" + id,
+                    type: "PUT",
+                    headers: { "Authorization": "Bearer " + token },
+                    contentType: "application/json",
+                    data: JSON.stringify(updateData),
+                    success: function (res) { loadReplies(); },
+                    error: function (xhr) { alert("Düzenleme başarısız oldu!"); }
+                });
+            }
+        };
+
+        window.deleteReply = function (id) {
+            if (confirm("Bu cevabı tamamen silmek istediğinize emin misiniz?")) {
+                $.ajax({
+                    url: API_FORUM_URL + "/replies/" + id,
+                    type: "DELETE",
+                    headers: { "Authorization": "Bearer " + token },
+                    success: function (res) { loadReplies(); },
+                    error: function (xhr) { alert("Silme işlemi başarısız oldu!"); }
+                });
+            }
+        };
+    </script>
+}

@@ -1,0 +1,173 @@
+﻿@{
+    ViewData["Title"] = "Haberi Düzenle";
+    Layout = "_AdminLayout";
+}
+
+<div class="card shadow-lg mt-4">
+    <div class="card-header bg-warning text-dark">
+        <h4 class="mb-0">✏️ Haberi Revize Et</h4>
+    </div>
+    <div class="card-body p-4">
+        <form id="editNewsForm">
+            <input type="hidden" id="txtNewsId" />
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Haber Başlığı <span class="text-danger">*</span></label>
+                <input type="text" id="txtTitle" class="form-control" placeholder="Başlığı güncelleyin...">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Kategori <span class="text-danger">*</span></label>
+                <select id="ddlCategory" class="form-select">
+                    <option value="0">Kategoriler Yükleniyor...</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Mevcut Görseller</label>
+                <div id="existingImages" class="d-flex flex-wrap gap-2 mb-2">
+                </div>
+                <label class="form-label fw-bold text-success">Yeni Görseller İlave Et (Mevcutlar korunur)</label>
+                <input type="file" id="fileImages" class="form-control" accept="image/*" multiple>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Haber İçeriği <span class="text-danger">*</span></label>
+                <textarea id="txtContent" class="form-control" rows="8"></textarea>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <a href="/News/Index" class="btn btn-secondary">Değişiklikleri İptal Et</a>
+                <button type="button" class="btn btn-primary fw-bold" onclick="updateNews()">Güncelle ve Yayınla</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_BASE_URL = "https://localhost:7043/api/News";
+        const API_CAT_URL = "https://localhost:7043/api/Category";
+        const myToken = typeof token !== 'undefined' ? token : localStorage.getItem("myToken");
+
+        const pathArray = window.location.pathname.split('/');
+        const newsId = pathArray[pathArray.length - 1];
+
+        $(document).ready(function () {
+            if (!newsId || isNaN(newsId)) {
+                alert("Geçersiz Haber ID!");
+                window.location.href = "/News/Index";
+                return;
+            }
+            $("#txtNewsId").val(newsId);
+            loadCategoriesThenNews();
+        });
+
+        function loadCategoriesThenNews() {
+            $.ajax({
+                url: API_CAT_URL,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + myToken },
+                success: function (categories) {
+                    var options = '<option value="0">Kategori Seçin...</option>';
+                    $.each(categories, function (i, cat) {
+                        options += `<option value="${cat.id}">${cat.name}</option>`;
+                    });
+                    $("#ddlCategory").html(options);
+                    fetchNewsDetails();
+                }
+            });
+        }
+
+        function fetchNewsDetails() {
+            $.ajax({
+                url: API_BASE_URL + "/" + newsId,
+                type: "GET",
+                success: function (n) {
+                    $("#txtTitle").val(n.title);
+                    $("#txtContent").val(n.content);
+                    $("#ddlCategory").val(n.categoryId);
+
+                    if (n.imageUrl && n.imageUrl.trim() !== "") {
+                        var photos = n.imageUrl.split(',');
+                        var imgHtml = "";
+
+                        photos.forEach(img => {
+                            if(img.trim() !== "") {
+                                imgHtml += `
+                                <div class="position-relative d-inline-block me-3 mb-3 border p-1 bg-light">
+                                    <img src="https://localhost:7043${img}" class="img-thumbnail border-0" style="width:120px; height:80px; object-fit:cover;">
+                                    <button type="button" class="btn btn-danger btn-sm position-absolute"
+                                            onclick="removeSingleImage(${newsId}, '${img}')"
+                                            style="top: -10px; right: -10px; border-radius: 50%; width: 25px; height: 25px; padding: 0; line-height: 1;"
+                                            title="Bu görseli sil">
+                                        &times;
+                                    </button>
+                                </div>`;
+                            }
+                        });
+                        $("#existingImages").html(imgHtml);
+                    } else {
+                        $("#existingImages").html('<span class="badge bg-secondary">Görsel Yok</span>');
+                    }
+                },
+                error: function () {
+                    alert("Haber verileri getirilemedi!");
+                }
+            });
+        }
+
+        window.removeSingleImage = function (id, imageUrl) {
+            if (confirm("Bu görseli kalıcı olarak silmek istediğinize emin misiniz?")) {
+                $.ajax({
+                    url: API_BASE_URL + "/" + id + "/delete-image?imageUrl=" + encodeURIComponent(imageUrl),
+                    type: "DELETE",
+                    headers: { "Authorization": "Bearer " + myToken },
+                    success: function (res) {
+                        fetchNewsDetails();
+                    },
+                    error: function (xhr) {
+                        alert("Hata: " + (xhr.responseJSON?.message || "Görsel silinemedi."));
+                    }
+                });
+            }
+        };
+
+        window.updateNews = function () {
+            var title = $("#txtTitle").val().trim();
+            var content = $("#txtContent").val().trim();
+            var categoryId = $("#ddlCategory").val();
+
+            if (!title || categoryId == "0" || !content) {
+                alert("Lütfen tüm zorunlu alanları doldurun!");
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append("Title", title);
+            formData.append("Content", content);
+            formData.append("CategoryId", categoryId);
+
+            var files = $("#fileImages")[0].files;
+            for (var i = 0; i < files.length; i++) {
+                formData.append("ImageFiles", files[i]);
+            }
+
+            $.ajax({
+                url: API_BASE_URL + "/" + newsId,
+                type: "PUT",
+                headers: { "Authorization": "Bearer " + myToken },
+                data: formData,
+                contentType: false,
+                processData: false,
+                success: function (res) {
+                    alert("Başarılı: " + res.message);
+                    window.location.href = "/News/Index";
+                },
+                error: function (xhr) {
+                    alert("Hata: " + (xhr.responseJSON?.message || "Güncellenemedi."));
+                }
+            });
+        };
+    </script>
+}

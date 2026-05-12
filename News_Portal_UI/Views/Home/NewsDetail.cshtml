@@ -1,0 +1,163 @@
+﻿@{
+    ViewData["Title"] = "Haber Detayı";
+    Layout = "_Layout";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-9">
+
+            <div id="loader" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">Haber yükleniyor...</p>
+            </div>
+
+            <div id="newsArea" style="display:none;">
+                <div class="text-center mb-4">
+                    <span id="lblCategory" class="badge bg-primary fs-6 mb-2">Kategori</span>
+                    <h1 id="lblTitle" class="fw-bold display-5 text-dark"></h1>
+                    <div class="text-muted mt-2">
+                        <i class="bi bi-person-fill"></i> Yazar: <span id="lblAuthor" class="fw-bold text-dark"></span> |
+                        <i class="bi bi-eye-fill"></i> <span id="lblViews">0</span> Görüntülenme
+                    </div>
+                </div>
+
+                <div id="newsSlider" class="carousel slide shadow-lg mb-4 rounded overflow-hidden" data-bs-ride="carousel">
+                    <div class="carousel-inner" id="sliderImages"></div>
+                    <button class="carousel-control-prev" type="button" data-bs-target="#newsSlider" data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#newsSlider" data-bs-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                    </button>
+                </div>
+
+                <div class="card shadow-sm mb-4 border-0">
+                    <div class="card-body p-4 fs-5" id="lblContent" style="line-height: 1.8; white-space: pre-wrap;"></div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded shadow-sm mb-5">
+                    <button id="btnLike" class="btn btn-outline-danger btn-lg fw-bold" onclick="likeNews()">
+                        ❤️ Beğen (<span id="lblLikes">0</span>)
+                    </button>
+
+                    <a id="btnGoToComments" href="#" class="btn btn-primary btn-lg fw-bold">
+                        💬 Yorumları Gör & Fikrini Belirt
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_NEWS_URL = "https://localhost:7043/api/News";
+        const pathArray = window.location.pathname.split('/');
+        const currentNewsId = pathArray[pathArray.length - 1];
+        const token = localStorage.getItem("myToken");
+
+        let isLiked = localStorage.getItem("liked_news_" + currentNewsId) === "true";
+
+        $(document).ready(function () {
+            if (currentNewsId && !isNaN(currentNewsId) && currentNewsId !== "0") {
+                $("#btnGoToComments").attr("href", "/Comment/Index/" + currentNewsId);
+
+                if (!token) {
+                    $("#btnLike")
+                        .prop("disabled", true) 
+                        .addClass("opacity-75") 
+                        .attr("title", "Beğenmek için giriş yapmalısınız"); 
+                }
+
+                loadNewsDetail();
+            } else {
+                alert("Geçersiz Haber! ID bulunamadı.");
+                window.location.href = "/Home/Index";
+            }
+        });
+
+        function loadNewsDetail() {
+            $.ajax({
+                url: API_NEWS_URL + "/" + currentNewsId,
+                type: "GET",
+                success: function (n) {
+                    $("#lblTitle").text(n.title || n.Title);
+                    $("#lblContent").text(n.content || n.Content);
+                    $("#lblAuthor").text(n.authorName || n.AuthorName || "Bilinmiyor");
+                    $("#lblViews").text(n.viewCount || n.ViewCount || 0);
+                    $("#lblCategory").text("Kategori: " + (n.categoryName || "Genel"));
+
+                    let currentLikes = n.likeCount || n.LikeCount || 0;
+
+
+                    if (isLiked && token) {
+                        $("#btnLike").removeClass("btn-outline-danger").addClass("btn-danger text-white")
+                            .html(`❤️ Beğenildi (<span id="lblLikes">${currentLikes}</span>)`);
+                    } else {
+                        $("#btnLike").removeClass("btn-danger text-white").addClass("btn-outline-danger")
+                            .html(`❤️ Beğen (<span id="lblLikes">${currentLikes}</span>)`);
+                    }
+
+                    let imgPath = n.imageUrl || n.ImageUrl;
+                    if (imgPath && imgPath.trim() !== "") {
+                        let photos = imgPath.split(',');
+                        let sliderHtml = "";
+                        photos.forEach((img, index) => {
+                            if (img.trim() !== "") {
+                                let isActive = index === 0 ? "active" : "";
+                                sliderHtml += `
+                                    <div class="carousel-item ${isActive}">
+                                        <img src="https://localhost:7043${img.trim()}" class="d-block w-100" style="height: 500px; object-fit: cover;">
+                                    </div>`;
+                            }
+                        });
+                        $("#sliderImages").html(sliderHtml);
+                    } else {
+                        $("#newsSlider").hide();
+                    }
+
+                    $("#loader").hide();
+                    $("#newsArea").fadeIn();
+                },
+                error: function () {
+                    alert("Haber veritabanından çekilemedi!");
+                    window.location.href = "/Home/Index";
+                }
+            });
+        }
+
+        window.likeNews = function () {
+            if (!token) {
+                alert("Beğenmek için önce giriş yapmalısınız!");
+                return;
+            }
+
+            $("#btnLike").prop("disabled", true);
+            let action = isLiked ? "unlike" : "like";
+
+            $.ajax({
+                url: API_NEWS_URL + "/" + currentNewsId + "/" + action,
+                type: "POST",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (res) {
+                    let newLikes = res.currentLikes || res.CurrentLikes;
+                    isLiked = !isLiked;
+                    localStorage.setItem("liked_news_" + currentNewsId, isLiked);
+
+                    if (isLiked) {
+                        $("#btnLike").removeClass("btn-outline-danger").addClass("btn-danger text-white").html(`❤️ Beğenildi (<span id="lblLikes">${newLikes}</span>)`);
+                    } else {
+                        $("#btnLike").removeClass("btn-danger text-white").addClass("btn-outline-danger").html(`❤️ Beğen (<span id="lblLikes">${newLikes}</span>)`);
+                    }
+                    $("#btnLike").prop("disabled", false);
+                },
+                error: function (xhr) {
+                    alert(xhr.responseJSON?.message || "İşlem başarısız oldu.");
+                    $("#btnLike").prop("disabled", false);
+                }
+            });
+        };
+    </script>
+}

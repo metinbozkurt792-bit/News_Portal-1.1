@@ -12,5 +12,8 @@ namespace News_Portal_1._1.Models
         public DbSet<Category> Categories { get; set; }
         public DbSet<News> News { get; set; }
         public DbSet<Comment> Comments { get; set; }
+        public DbSet<ForumTopic> ForumTopics { get; set; }
+        public DbSet<ForumReply> ForumReplies { get; set; }
+        public DbSet<ContactMessage> ContactMessages { get; set; }
     }
 }

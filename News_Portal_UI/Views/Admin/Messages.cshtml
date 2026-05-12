@@ -1,0 +1,206 @@
+﻿@{
+    ViewData["Title"] = "Gelen Mesajlar";
+    Layout = "_AdminLayout";
+}
+
+<div class="card shadow-lg border-0 rounded-4 mt-4">
+    <div class="card-header bg-dark text-white p-4 d-flex justify-content-between align-items-center rounded-top-4">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-envelope-paper-fill me-2 text-warning"></i> Gelen Mesajlar</h4>
+        <span class="badge bg-primary px-3 py-2 rounded-pill" id="msgCount">0 Mesaj</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-secondary text-uppercase small fw-bolder">
+                    <tr>
+                        <th class="ps-4">Durum</th>
+                        <th>Gönderen / Alıcı</th>
+                        <th>Konu</th>
+                        <th>Tarih</th>
+                        <th class="text-end pe-4">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody id="messageTableBody">
+                    <tr><td colspan="5" class="text-center py-5">Yükleniyor...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="msgDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-primary text-white border-0 rounded-top-4">
+                <h5 class="modal-title fw-bold">Mesaj Detayı</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="currentMsgId" />
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="text-muted small text-uppercase fw-bold">Gönderen</label>
+                        <p id="detSender" class="fw-bold fs-5 mb-0 text-dark"></p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small text-uppercase fw-bold">Konu</label>
+                        <p id="detSubject" class="fw-bold text-dark"></p>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="text-muted small text-uppercase fw-bold">Mesaj</label>
+                    <div id="detMessage" class="p-3 bg-light rounded-3 text-secondary" style="white-space: pre-wrap; line-height: 1.6;"></div>
+                </div>
+
+                <div class="border-top pt-4" id="replySection">
+                    <label class="text-primary small text-uppercase fw-bold mb-2"><i class="bi bi-reply-fill"></i> Kullanıcıya Yanıt Gönder</label>
+                    <textarea id="adminReplyText" class="form-control mb-3 shadow-sm border-0 bg-light" rows="3" placeholder="Yanıtınızı buraya yazın..."></textarea>
+                    <div class="text-end">
+                        <button type="button" class="btn btn-success fw-bold rounded-pill px-4 shadow-sm" onclick="sendAdminReply()">
+                            <i class="bi bi-send-fill"></i> Yanıtla
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_URL = "https://localhost:7043/api/Contact";
+        const adminToken = localStorage.getItem("myToken");
+
+        $(document).ready(function () {
+            if (!adminToken) { window.location.href = "/Auth/Login"; return; }
+            loadMessages();
+        });
+
+        function loadMessages() {
+            $.ajax({
+                url: API_URL,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + adminToken },
+                success: function (messages) {
+                    $("#msgCount").text(messages.length + " Mesaj");
+                    if (messages.length === 0) {
+                        $("#messageTableBody").html('<tr><td colspan="5" class="text-center py-5 text-muted fw-bold">Gelen kutunuz boş!</td></tr>');
+                        return;
+                    }
+
+                    var html = "";
+                    $.each(messages, function (i, m) {
+                        let statusIcon = m.isFromAdmin ? '<i class="bi bi-send-check text-success fs-5"></i>' : (m.isRead ? '<i class="bi bi-envelope-open text-muted fs-5"></i>' : '<i class="bi bi-envelope-fill text-primary fs-5 animate-pulse"></i>');
+                        let rowClass = (m.isRead || m.isFromAdmin) ? "" : "table-info font-weight-bold";
+                        let dateStr = new Date(m.createdAt).toLocaleString("tr-TR");
+
+                        let direction = m.isFromAdmin ? `<span class="badge bg-success">Giden</span> -> ${m.ReceiverName}` : `<span class="badge bg-primary">Gelen</span> ${m.senderName}`;
+
+                        html += `
+                            <tr class="${rowClass}">
+                                <td class="ps-4">${statusIcon}</td>
+                                <td><div class="fw-bold text-dark">${direction}</div></td>
+                                <td><span class="text-truncate d-inline-block" style="max-width: 200px;">${m.subject}</span></td>
+                                <td class="small text-muted">${dateStr}</td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-outline-primary fw-bold rounded-pill me-2" onclick="readMessage(${m.id})">Aç</button>
+                                    <button class="btn btn-sm btn-outline-danger fw-bold rounded-pill" onclick="deleteMessage(${m.id})">Sil</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    $("#messageTableBody").html(html);
+                }
+            });
+        }
+
+        window.readMessage = function (id) {
+            $.ajax({
+                url: API_URL,
+                type: "GET",
+                headers: { "Authorization": "Bearer " + adminToken },
+                success: function (messages) {
+                    let m = messages.find(x => x.id == id);
+                    if (m) {
+                        $("#currentMsgId").val(m.id);
+                        $("#detSender").text(m.isFromAdmin ? "Admin (Sen)" : m.senderName);
+                        $("#detSubject").text(m.subject);
+                        $("#detMessage").text(m.message);
+
+                        if(m.isFromAdmin) {
+                            $("#replySection").hide();
+                        } else {
+                            $("#replySection").show();
+                            $("#adminReplyText").val("");
+                        }
+
+                        new bootstrap.Modal(document.getElementById('msgDetailModal')).show();
+
+                        if (!m.isRead && !m.isFromAdmin) {
+                            $.ajax({
+                                url: `${API_URL}/${id}/read`,
+                                type: "PUT",
+                                headers: { "Authorization": "Bearer " + adminToken },
+                                success: function() { loadMessages(); }
+                            });
+                        }
+                    }
+                }
+            });
+        };
+
+        window.sendAdminReply = function() {
+            let msgId = $("#currentMsgId").val();
+            let replyText = $("#adminReplyText").val().trim();
+
+            if(!replyText) { alert("Lütfen bir yanıt yazın!"); return; }
+
+            $.ajax({
+                url: `${API_URL}/${msgId}/reply`,
+                type: "POST",
+                headers: { "Authorization": "Bearer " + adminToken },
+                contentType: "application/json",
+                data: JSON.stringify({ message: replyText, senderName: "", email: "", subject: "" }), 
+                success: function(res) {
+                    alert(res.message);
+                    $("#adminReplyText").val("");
+                    $("#msgDetailModal").modal('hide');
+                    loadMessages();
+                },
+                error: function() { alert("Yanıt gönderilemedi!"); }
+            });
+        };
+
+        window.deleteMessage = function (id) {
+            if (confirm("Bu mesajı silmek istediğinize emin misiniz?")) {
+                $.ajax({
+                    url: `${API_URL}/${id}`,
+                    type: "DELETE",
+                    headers: { "Authorization": "Bearer " + adminToken },
+                    success: function () { loadMessages(); }
+                });
+            }
+        };
+    </script>
+    <style>
+        .animate-pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @@keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }</style>
+}

@@ -57,11 +57,33 @@ namespace News_Portal_1._1.Controllers
             {
                 NewsId = dto.NewsId,
                 Text = dto.Text,
-                UserName = currentUserName
+                UserName = currentUserName,
+                CreatedAt = DateTime.Now
             };
 
             await _repository.AddAsync(newComment);
             return Ok(new { Message = "Yorumunuz başarıyla eklendi!" });
+        }
+
+        [Authorize]
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateComment(int id, [FromBody] CommentCreateDto dto)
+        {
+            var comment = await _repository.GetByIdAsync(id);
+            if (comment == null)
+                return NotFound(new { Message = "Güncellenecek yorum bulunamadı!" });
+
+            var currentUserName = User.Identity?.Name;
+            var isAdmin = User.IsInRole("Admin");
+
+            if (!isAdmin && comment.UserName != currentUserName)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { Message = "Sadece kendi yorumlarınızı güncelleyebilirsiniz!" });
+            }
+            comment.Text = dto.Text;
+
+            await _repository.UpdateAsync(comment);
+            return Ok(new { Message = "Yorum başarıyla güncellendi." });
         }
 
         [Authorize]
@@ -82,6 +104,66 @@ namespace News_Portal_1._1.Controllers
 
             await _repository.DeleteAsync(comment);
             return Ok(new { Message = "Yorum başarıyla silindi." });
+        }
+
+        [Authorize]
+        [HttpPost("{id}/{actionType}")]
+        public async Task<IActionResult> VoteComment(int id, string actionType)
+        {
+            var comment = await _repository.GetByIdAsync(id);
+            if (comment == null) return NotFound(new { Message = "Yorum bulunamadı!" });
+
+            var currentUser = User.Identity?.Name ?? "Anonim";
+
+            comment.LikedUsers ??= "";
+            comment.DislikedUsers ??= "";
+
+            bool isLiked = comment.LikedUsers.Contains(currentUser + ",");
+            bool isDisliked = comment.DislikedUsers.Contains(currentUser + ",");
+
+            if (actionType == "like")
+            {
+                if (isLiked)
+                {
+                    comment.LikedUsers = comment.LikedUsers.Replace(currentUser + ",", "");
+                    comment.LikeCount--;
+                    await _repository.UpdateAsync(comment);
+                    return Ok(new { Message = "Beğeni geri alındı!", Action = "removed" });
+                }
+                comment.LikedUsers += currentUser + ",";
+                comment.LikeCount++;
+
+                if (isDisliked) 
+                {
+                    comment.DislikedUsers = comment.DislikedUsers.Replace(currentUser + ",", "");
+                    comment.DislikeCount--;
+                }
+            }
+            else if (actionType == "dislike")
+            {
+                if (isDisliked)
+                {
+                    comment.DislikedUsers = comment.DislikedUsers.Replace(currentUser + ",", "");
+                    comment.DislikeCount--;
+                    await _repository.UpdateAsync(comment);
+                    return Ok(new { Message = "Beğenmeme oyu geri alındı!", Action = "removed" });
+                }
+                comment.DislikedUsers += currentUser + ",";
+                comment.DislikeCount++;
+
+                if (isLiked)
+                {
+                    comment.LikedUsers = comment.LikedUsers.Replace(currentUser + ",", "");
+                    comment.LikeCount--;
+                }
+            }
+            else
+            {
+                return BadRequest(new { Message = "Geçersiz işlem tipi!" });
+            }
+
+            await _repository.UpdateAsync(comment);
+            return Ok(new { Message = "Oyunuz başarıyla kaydedildi!", Action = "voted" });
         }
     }
 }

@@ -1,0 +1,104 @@
+﻿@{
+    ViewData["Title"] = "Mesajlarım";
+    Layout = "_Layout";
+}
+
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="fw-bold text-dark"><i class="bi bi-inbox-fill text-primary"></i> Gelen Kutum</h2>
+                <a href="/Contact/Index" class="btn btn-primary rounded-pill fw-bold shadow-sm">+ Yeni Destek Talebi</a>
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-0">
+                    <div id="userMessagesList">
+                        <div class="text-center py-5 text-muted">
+                            <div class="spinner-border text-primary mb-2" role="status"></div>
+                            <p>Mesajlarınız yükleniyor...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_URL = "https://localhost:7043/api/Contact";
+        const localMessagesToken = localStorage.getItem("myToken");
+
+        function getUsernameFromToken() {
+            if (!localMessagesToken) return null;
+            try {
+                let base64Url = localMessagesToken.split('.')[1];
+                let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                let payload = JSON.parse(window.atob(base64));
+
+                return payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] || payload.unique_name || payload.name;
+            } catch(e) {
+                console.error("Token çözme hatası:", e);
+                return null;
+            }
+        }
+
+        const currentUserName = getUsernameFromToken();
+
+        $(document).ready(function () {
+            if (!localMessagesToken || !currentUserName) {
+                alert("Mesajlarınızı görmek için giriş yapmalısınız.");
+                window.location.href = "/Auth/Login";
+                return;
+            }
+            loadUserMessages();
+        });
+
+        function loadUserMessages() {
+            $.ajax({
+                url: API_URL + "/my-messages",
+                type: "GET",
+                headers: { "Authorization": "Bearer " + localMessagesToken },
+                success: function (messages) {
+                    if (!messages || messages.length === 0) {
+                        $("#userMessagesList").html('<div class="p-5 text-center text-muted fw-bold">Henüz hiçbir mesajınız yok.</div>');
+                        return;
+                    }
+
+                    var html = `<div class="list-group list-group-flush rounded-4">`;
+
+                    $.each(messages, function (i, m) {
+                        let isFromAdmin = m.isFromAdmin || m.IsFromAdmin;
+                        let bgClass = isFromAdmin ? "bg-light border-start border-4 border-primary" : "bg-white";
+                        let icon = isFromAdmin ? '<i class="bi bi-shield-lock-fill text-primary fs-3"></i>' : '<i class="bi bi-person-fill text-secondary fs-3"></i>';
+                        let senderLabel = isFromAdmin ? `<span class="badge bg-primary">Admin Gelen Mesaj</span>` : `<span class="badge bg-secondary">Sizin Talebiniz</span>`;
+                        let dateStr = new Date(m.createdAt || m.CreatedAt).toLocaleString("tr-TR");
+
+                        html += `
+                            <div class="list-group-item list-group-item-action p-4 ${bgClass}">
+                                <div class="d-flex w-100 justify-content-between align-items-center mb-2">
+                                    <div class="d-flex align-items-center">
+                                        ${icon}
+                                        <h5 class="mb-0 ms-3 fw-bold">${senderLabel} <span class="ms-2 text-dark">${m.subject || m.Subject}</span></h5>
+                                    </div>
+                                    <small class="text-muted">${dateStr}</small>
+                                </div>
+                                <p class="mb-0 ms-5 text-secondary" style="white-space: pre-wrap;">${m.message || m.Message}</p>
+                            </div>
+                        `;
+                    });
+
+                    html += `</div>`;
+                    $("#userMessagesList").html(html);
+                },
+                error: function (xhr) {
+                    console.error("Mesaj yükleme hatası:", xhr);
+                    $("#userMessagesList").html('<div class="p-5 text-center text-danger fw-bold">Mesajlar şu an yüklenemiyor.</div>');
+                }
+            });
+        }
+    </script>
+}

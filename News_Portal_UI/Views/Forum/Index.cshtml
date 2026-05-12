@@ -1,0 +1,195 @@
+﻿@{
+    ViewData["Title"] = "Topluluk Forumu";
+    Layout = "_Layout";
+}
+
+<div class="container mt-5">
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold text-dark"><i class="bi bi-people-fill text-primary"></i> Haber Forumu</h1>
+        <p class="text-muted fs-5">Üyelerimizin buluşma, tartışma ve fikir paylaşma noktası.</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+
+            <div class="card shadow-sm border-0 rounded-4 mb-4 bg-light">
+                <div class="card-body p-4 text-center">
+                    <h5 class="fw-bold mb-3">Yeni Bir Tartışma Başlatmak İster Misin?</h5>
+                    <button class="btn btn-primary btn-lg rounded-pill fw-bold shadow-sm px-5" type="button" data-bs-toggle="collapse" data-bs-target="#newTopicForm">
+                        + Yeni Konu Aç
+                    </button>
+
+                    <div class="collapse mt-4 text-start" id="newTopicForm">
+                        <div class="card card-body border-0 shadow-sm rounded-4">
+                            <div class="mb-3">
+                                <label class="fw-bold">Konu Başlığı</label>
+                                <input type="text" id="txtTitle" class="form-control form-control-lg" placeholder="Dikkat çekici bir başlık girin...">
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Mesajınız</label>
+                                <textarea id="txtContent" class="form-control" rows="4" placeholder="Konunun detaylarını yazın..."></textarea>
+                            </div>
+                            <div class="text-end">
+                                <button class="btn btn-success fw-bold px-4" onclick="createTopic()">Konuyu Yayımla</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h4 class="fw-bold mb-3">🔥 Gündemdeki Konular</h4>
+            <div id="topicsList">
+                <div class="text-center text-muted py-5">
+                    <div class="spinner-border text-primary mb-3" role="status"></div>
+                    <p>Konular yükleniyor...</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_FORUM_URL = "https://localhost:7043/api/Forum";
+        const token = localStorage.getItem("myToken");
+
+        function getAuthInfo() {
+            if (!token) return { name: null, role: null };
+            try {
+                let payload = JSON.parse(atob(token.split('.')[1]));
+                return {
+                    name: payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] || payload.name || "@User.Identity?.Name",
+                    role: payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || payload.role || null
+                };
+            } catch(e) { return { name: "@User.Identity?.Name", role: null }; }
+        }
+
+        const auth = getAuthInfo();
+        const currentUserName = auth.name;
+        const currentUserRole = auth.role;
+
+        $(document).ready(function () {
+            if (!token) {
+                alert("Forum bölgesi sadece üyelere özeldir. Lütfen önce giriş yapın!");
+                window.location.href = "/Auth/Login";
+                return; 
+            }
+
+            loadTopics();
+        });
+
+
+        function loadTopics() {
+            $.ajax({
+                url: API_FORUM_URL + "/topics",
+                type: "GET",
+                headers: { "Authorization": "Bearer " + token },
+                success: function (topics) {
+                    if (!topics || topics.length === 0) {
+                        $("#topicsList").html('<div class="alert alert-secondary text-center rounded-4 border-0 py-4">Henüz hiç konu açılmamış. İlk konuyu sen aç!</div>');
+                        return;
+                    }
+
+                    topics.sort((a, b) => b.viewCount - a.viewCount);
+
+                    var html = "";
+                    $.each(topics, function (index, t) {
+                        let avatarUrl = "https://ui-avatars.com/api/?name=" + encodeURIComponent(t.userName) + "&background=random&color=fff&bold=true";
+                        let dateStr = new Date(t.createdAt).toLocaleDateString("tr-TR");
+
+                        let isOwner = currentUserName && t.userName === currentUserName;
+                        let isAdmin = currentUserRole === "Admin";
+
+                        let editBtn = isOwner ? `
+                            <button class="btn btn-sm btn-outline-warning fw-bold text-dark me-2 border-0 shadow-sm"
+                                    onclick="event.stopPropagation(); window.location.href='/Forum/Update/${t.id}'">
+                                ✏️ Düzenle
+                            </button>` : "";
+
+                        let deleteBtn = (isOwner || isAdmin) ? `
+                            <button class="btn btn-sm btn-outline-danger fw-bold border-0 shadow-sm"
+                                    onclick="event.stopPropagation(); deleteTopic(${t.id})">
+                                🗑️ Sil
+                            </button>` : "";
+
+                        html += `
+                            <div class="card shadow-sm border-0 rounded-4 mb-3 topic-card" onclick="window.location.href='/Forum/Detail/${t.id}'" style="cursor: pointer;">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <img src="${avatarUrl}" class="rounded-circle shadow-sm me-3" style="width: 50px; height: 50px;">
+                                        <div class="flex-grow-1">
+                                            <h5 class="fw-bold text-dark mb-1">${t.title}</h5>
+                                            <div class="text-muted small">
+                                                <i class="bi bi-person-fill"></i> ${t.userName} &nbsp;|&nbsp;
+                                                <i class="bi bi-calendar-event"></i> ${dateStr}
+                                            </div>
+                                        </div>
+                                        <div class="text-end text-muted">
+                                            <div class="fs-5 fw-bold text-danger"><i class="bi bi-fire"></i> ${t.viewCount}</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="text-end mt-2">
+                                        ${editBtn}
+                                        ${deleteBtn}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    $("#topicsList").html(html);
+                },
+                error: function (xhr) {
+                    if (xhr.status === 401) {
+                        window.location.href = "/Auth/Login";
+                    } else {
+                        $("#topicsList").html('<div class="text-danger text-center">Bağlantı hatası!</div>');
+                    }
+                }
+            });
+        }
+
+        window.createTopic = function () {
+            let title = $("#txtTitle").val().trim();
+            let content = $("#txtContent").val().trim();
+
+            if (!title || !content) { alert("Başlık ve mesaj alanı boş bırakılamaz!"); return; }
+
+            let topicData = { title: title, content: content };
+
+            $.ajax({
+                url: API_FORUM_URL + "/topics",
+                type: "POST",
+                headers: { "Authorization": "Bearer " + token },
+                contentType: "application/json",
+                data: JSON.stringify(topicData),
+                success: function (res) {
+                    $("#txtTitle").val("");
+                    $("#txtContent").val("");
+                    $("#newTopicForm").collapse('hide');
+                    loadTopics();
+                },
+                error: function (xhr) { alert("Konu açılamadı! Yetkinizi kontrol edin."); }
+            });
+        };
+
+        // 3. KONU SİL
+        window.deleteTopic = function (id) {
+            if (confirm("Bu konuyu tamamen silmek istediğinize emin misiniz?")) {
+                $.ajax({
+                    url: API_FORUM_URL + "/topics/" + id,
+                    type: "DELETE",
+                    headers: { "Authorization": "Bearer " + token },
+                    success: function (res) {
+                        alert(res.message || "Konu silindi.");
+                        loadTopics();
+                    },
+                    error: function (xhr) {
+                        alert(xhr.responseJSON?.message || "Bu işlemi yapmaya yetkiniz yok!");
+                    }
+                });
+            }
+        };
+    </script>
+}

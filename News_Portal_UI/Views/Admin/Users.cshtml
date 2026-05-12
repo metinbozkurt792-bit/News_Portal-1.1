@@ -1,0 +1,147 @@
+﻿@{
+    ViewData["Title"] = "Kullanıcı Yönetimi";
+    Layout = "_AdminLayout";
+}
+
+<div class="card shadow-lg border-0 rounded-4 mt-4">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center p-4 rounded-top-4">
+        <h4 class="mb-0 fw-bold"><i class="bi bi-people-fill text-warning me-2"></i> Sistemdeki Kullanıcılar</h4>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-secondary text-uppercase small fw-bolder">
+                    <tr>
+                        <th class="ps-4">Kullanıcı Adı</th>
+                        <th>Email</th>
+                        <th>Ad Soyad</th>
+                        <th>Durum</th>
+                        <th class="text-end pe-4">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                    <tr>
+                        <td colspan="5" class="text-center py-5 text-muted">
+                            <div class="spinner-border text-primary mb-2" role="status"></div>
+                            <p>Kullanıcılar çekiliyor...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const API_URL = "https://localhost:7043/api/Admin";
+
+        const adminToken = localStorage.getItem("myToken");
+
+        $(document).ready(function () {
+            if (!adminToken) {
+                alert("Bu sayfayı görüntülemek için Admin yetkiniz olmalıdır!");
+                window.location.href = "/Auth/Login";
+                return;
+            }
+            loadUsers();
+        });
+
+        function loadUsers() {
+            $.ajax({
+                url: API_URL + "/users",
+                type: "GET",
+                headers: { "Authorization": "Bearer " + adminToken },
+                success: function (users) {
+                    if (!users || users.length === 0) {
+                        $("#userTableBody").html('<tr><td colspan="5" class="text-center py-5 fw-bold text-muted">Sistemde henüz kullanıcı yok.</td></tr>');
+                        return;
+                    }
+
+                    var rows = "";
+                    $.each(users, function (index, u) {
+
+                        var statusBadge = u.isBanned
+                            ? '<span class="badge bg-danger px-3 py-2 rounded-pill"><i class="bi bi-slash-circle me-1"></i> Banlı</span>'
+                            : '<span class="badge bg-success px-3 py-2 rounded-pill"><i class="bi bi-check-circle me-1"></i> Aktif</span>';
+
+                        var actionButtons = "";
+
+                        if (u.userName.toLowerCase() === "admin") {
+                            actionButtons = '<span class="badge bg-dark py-2 px-3 rounded-pill shadow-sm"><i class="bi bi-shield-lock-fill text-warning me-1"></i> Sistem Yöneticisi</span>';
+                        } else {
+                            var banBtn = u.isBanned
+                                ? `<button class="btn btn-sm btn-outline-success fw-bold rounded-pill shadow-sm me-2" onclick="unbanUser('${u.userName}')"><i class="bi bi-unlock-fill"></i> Ban Kaldır</button>`
+                                : `<button class="btn btn-sm btn-outline-warning fw-bold rounded-pill shadow-sm me-2" onclick="banUser('${u.userName}')"><i class="bi bi-lock-fill"></i> Banla</button>`;
+
+                            var deleteBtn = `<button class="btn btn-sm btn-outline-danger fw-bold rounded-pill shadow-sm" onclick="deleteUser('${u.userName}')"><i class="bi bi-trash-fill"></i> Sil</button>`;
+
+                            actionButtons = banBtn + deleteBtn;
+                        }
+
+                        rows += `
+                            <tr>
+                                <td class="ps-4 fw-bold text-dark">@@${u.userName}</td>
+                                <td class="text-muted">${u.email}</td>
+                                <td class="fw-bold">${u.firstName || ''} ${u.lastName || ''}</td>
+                                <td>${statusBadge}</td>
+                                <td class="text-end pe-4">${actionButtons}</td>
+                            </tr>
+                        `;
+                    });
+                    $("#userTableBody").html(rows);
+                },
+                error: function (xhr) {
+                    $("#userTableBody").html('<tr><td colspan="5" class="text-center py-5 text-danger fw-bold"><i class="bi bi-exclamation-triangle-fill fs-3 d-block mb-2"></i> Veriler yüklenirken hata oluştu!</td></tr>');
+                }
+            });
+        }
+
+        window.deleteUser = function (username) {
+            if (confirm(`'${username}' adlı kullanıcıyı KALICI OLARAK silmek istediğinize emin misiniz? Bu işlem geri alınamaz!`)) {
+                $.ajax({
+                    url: API_URL + "/delete-user/" + username,
+                    type: "DELETE",
+                    headers: { "Authorization": "Bearer " + adminToken },
+                    success: function (res) {
+                        alert(res.message);
+                        loadUsers();
+                    },
+                    error: function (xhr) {
+                        alert("Hata: " + (xhr.responseJSON?.message || "Kullanıcı silinemedi."));
+                    }
+                });
+            }
+        };
+
+        window.banUser = function (username) {
+            if (confirm(`'${username}' adlı kullanıcıyı banlamak istiyor musunuz? Kullanıcı sisteme bir daha giriş yapamaz.`)) {
+                $.ajax({
+                    url: API_URL + "/ban-user/" + username,
+                    type: "POST",
+                    headers: { "Authorization": "Bearer " + adminToken },
+                    success: function (res) {
+                        loadUsers();
+                    },
+                    error: function (xhr) {
+                        alert("Hata: " + (xhr.responseJSON?.message || "Kullanıcı banlanamadı."));
+                    }
+                });
+            }
+        };
+
+        window.unbanUser = function (username) {
+            $.ajax({
+                url: API_URL + "/unban-user/" + username,
+                type: "POST",
+                headers: { "Authorization": "Bearer " + adminToken },
+                success: function (res) {
+                    loadUsers();
+                },
+                error: function (xhr) {
+                    alert("Hata: " + (xhr.responseJSON?.message || "Ban kaldırılamadı."));
+                }
+            });
+        };
+    </script>
+}
